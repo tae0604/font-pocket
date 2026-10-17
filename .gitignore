@@ -1,0 +1,8 @@
+work/
+*.exe
+*.exe.sha256
+*.pfx
+*.p12
+*.key
+*.log
+test-results/
