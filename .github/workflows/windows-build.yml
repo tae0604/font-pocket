@@ -1,0 +1,57 @@
+name: Build Font Pocket
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'outputs/FontPocket/**'
+      - 'outputs/FontPocket-Installer/**'
+      - '.github/workflows/windows-build.yml'
+  pull_request:
+    paths:
+      - 'outputs/FontPocket/**'
+      - 'outputs/FontPocket-Installer/**'
+      - '.github/workflows/windows-build.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-2022
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build application
+        shell: powershell
+        run: ./outputs/FontPocket/build.ps1
+      - name: Run isolated self-tests
+        shell: powershell
+        run: |
+          $results = Join-Path $env:RUNNER_TEMP ('font-pocket-tests-' + [Guid]::NewGuid().ToString('N'))
+          New-Item -ItemType Directory -Path $results | Out-Null
+          $testProcess = Start-Process ./outputs/FontPocket/FontPocket.exe -ArgumentList @('--self-test', ('"' + $results + '"')) -Wait -PassThru
+          if ($testProcess.ExitCode -ne 0) {
+            Get-ChildItem $results -Filter '*failure*' | Get-Content
+            throw 'Application self-tests failed.'
+          }
+      - name: Prepare Inno Setup
+        shell: powershell
+        run: |
+          $inno = 'C:\Program Files (x86)\Inno Setup 6\ISCC.exe'
+          if (-not (Test-Path $inno)) {
+            choco install innosetup --version=6.6.1 --yes --no-progress
+            if ($LASTEXITCODE -ne 0) { throw 'Inno Setup installation failed.' }
+          }
+      - name: Build unsigned installer
+        shell: powershell
+        run: ./outputs/FontPocket-Installer/build-installer.ps1 -CompilerPath 'C:\Program Files (x86)\Inno Setup 6\ISCC.exe'
+      - name: Upload unsigned build for review
+        uses: actions/upload-artifact@v4
+        with:
+          name: FontPocket-unsigned-${{ github.sha }}
+          if-no-files-found: error
+          path: |
+            outputs/FontPocket/FontPocket.exe
+            outputs/FontPocket-Setup-*.exe
+            outputs/FontPocket-Setup-*.exe.sha256
