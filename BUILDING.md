@@ -45,7 +45,7 @@ Temporary wrapper build files go under `work/` and are not committed.
 ## Code signing
 
 The public v0.1.0 installer is unsigned. See [Code signing policy](CODE_SIGNING.md).
-SignPath approval and integration are pending; there is no active signing job yet.
+GitHub Actions builds unsigned app and installer artifacts from the reviewed source. SignPath approval and signing integration are pending; there is no active signing job yet.
 The intended order is: build app, sign app, build/sign the inner Inno payload,
 build/sign the outer language selector, verify all signatures, then generate
 the final SHA-256 sidecar. Never publish a checksum generated before signing.

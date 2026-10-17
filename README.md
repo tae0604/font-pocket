@@ -38,6 +38,13 @@ Report problems or suggest features in [Issues](https://github.com/tae0604/font-
 
 ---
 
+## Source and license
+
+The original Font Pocket code is available under the [MIT license](LICENSE).
+Bundled fonts retain their own licenses. See [Build instructions](BUILDING.md),
+[Privacy policy](PRIVACY.md), and [Code signing policy](CODE_SIGNING.md).
+SignPath application preparation is in progress; v0.1.0 is currently unsigned.
+
 ## 한국어
 
 폰트를 내려받고, 설치하고, 관리합니다.
@@ -75,3 +82,9 @@ Font Pocket은 Windows용 폰트 관리 프로그램입니다. 눈누·공식 �
 ### 문의
 
 문제나 제안은 [Issues](https://github.com/tae0604/font-pocket/issues)에 남겨 주세요.
+
+### 소스와 라이선스
+
+프로젝트 소스는 MIT 라이선스로 공개합니다. 포함된 폰트에는 별도 라이선스가 적용됩니다.
+[빌드 방법](BUILDING.md) · [개인정보 안내](PRIVACY.md) · [서명 정책](CODE_SIGNING.md).
+현재 0.1.0은 서명되지 않았으며 SignPath 신청을 준비 중입니다.
