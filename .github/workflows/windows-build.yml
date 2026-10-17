@@ -21,7 +21,9 @@ jobs:
     runs-on: windows-2022
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
       - name: Build application
         shell: powershell
         run: ./outputs/FontPocket/build.ps1
@@ -47,7 +49,7 @@ jobs:
         shell: powershell
         run: ./outputs/FontPocket-Installer/build-installer.ps1 -CompilerPath 'C:\Program Files (x86)\Inno Setup 6\ISCC.exe'
       - name: Upload unsigned build for review
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: FontPocket-unsigned-${{ github.sha }}
           if-no-files-found: error
