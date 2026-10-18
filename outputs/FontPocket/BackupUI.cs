@@ -27,8 +27,8 @@ namespace FontPocket {
             var searchBar = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 3, Margin = Padding.Empty };
             searchBar.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 42)); searchBar.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100)); searchBar.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 110));
             searchBar.Controls.Add(new Label { Text = "검색", AutoSize = true, Margin = new Padding(0, 5, 0, 0) });
-            backupSearch.Dock = DockStyle.Fill; backupSearch.Margin = new Padding(0, 1, 12, 4); backupSearch.TextChanged += delegate { RefreshBackupList(); }; controls.Add(backupSearch); searchBar.Controls.Add(backupSearch);
-            var refresh = MakeButton("새로고침", 100, async delegate { await LoadBackupFonts(); }, false); refresh.Height = 28; searchBar.Controls.Add(refresh); layout.Controls.Add(searchBar);
+            backupSearch.Dock = DockStyle.Fill; backupSearch.Margin = new Padding(0, 1, 12, 4); backupSearch.TextChanged += delegate { RefreshBackupList(); }; controls.Add(backupSearch); searchBar.Controls.Add(ModernInput.Frame(backupSearch));
+            var refresh = MakeButton("새로고침", 100, async delegate { await LoadBackupFonts(); }, false); refresh.Height = 32; searchBar.Controls.Add(refresh); layout.Controls.Add(searchBar);
             var tools = new FlowLayoutPanel { Dock = DockStyle.Fill, WrapContents = false, Margin = Padding.Empty };
             tools.Controls.Add(MakeButton("전체 선택", 100, delegate { foreach (var f in backupFonts) f.Selected = true; RefreshBackupList(); }, false));
             tools.Controls.Add(MakeButton("전체 해제", 100, delegate { foreach (var f in backupFonts) f.Selected = false; RefreshBackupList(); }, false));

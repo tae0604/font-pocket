@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.Drawing.Text;
@@ -29,7 +29,7 @@ namespace FontPocket {
             title.Tag="OriginalMetadata"; title.Dock = DockStyle.Fill; title.AutoEllipsis = true; title.Text = font.Name + "  [" + System.IO.Path.GetExtension(font.Path).TrimStart('.').ToUpperInvariant() + "]"; layout.Controls.Add(title);
             canvas.Dock = DockStyle.Fill; canvas.Paint += delegate(object sender, PaintEventArgs e) {
                 e.Graphics.TextRenderingHint = TextRenderingHint.AntiAliasGridFit;
-                if (session != null) using (var brush = new SolidBrush(Color.FromArgb(32, 38, 48))) e.Graphics.DrawString(sample, session.Font, brush, canvas.ClientRectangle);
+                if (session != null) using (var brush = new SolidBrush(PocketTheme.Ink)) e.Graphics.DrawString(sample, session.Font, brush, canvas.ClientRectangle);
                 else TextRenderer.DrawText(e.Graphics, "미리보기 지원 안 됨 · " + error, Font, canvas.ClientRectangle, Color.DimGray, TextFormatFlags.WordBreak);
             }; layout.Controls.Add(canvas);
             layout.Controls.Add(new Label { Text = font.Origin + " · " + System.IO.Path.GetFileName(font.Path), Dock = DockStyle.Fill, AutoEllipsis = true, ForeColor = Color.FromArgb(115, 121, 133), Font = new Font("맑은 고딕", 8) }); Controls.Add(layout);
@@ -126,3 +126,4 @@ namespace FontPocket {
         }
     }
 }
+

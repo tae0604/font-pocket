@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Diagnostics;
 using System.Drawing;
 using System.IO;
@@ -16,8 +16,8 @@ namespace FontPocket {
         Func<string,MessageBoxButtons,MessageBoxIcon,DialogResult> appUpdatePrompt=null;
 
         void InitializeAppUpdates(Panel sidebar) {
-            var settings=new Button {Text="설정",Name="AppSettings",FlatStyle=FlatStyle.System,UseVisualStyleBackColor=true,Location=new Point(18,sidebar.Height-118),Size=new Size(180,28),Anchor=AnchorStyles.Left|AnchorStyles.Bottom,TabIndex=4};
-            var update=new Button {Text="업데이트 확인",Name="CheckAppUpdates",FlatStyle=FlatStyle.System,UseVisualStyleBackColor=true,Location=new Point(18,sidebar.Height-80),Size=new Size(180,28),Anchor=AnchorStyles.Left|AnchorStyles.Bottom,TabIndex=5};
+            var settings=new PocketButton {Text="설정",Name="AppSettings",Location=new Point(18,sidebar.Height-118),Size=new Size(180,28),Anchor=AnchorStyles.Left|AnchorStyles.Bottom,TabIndex=4};
+            var update=new PocketButton {Text="업데이트 확인",Name="CheckAppUpdates",Location=new Point(18,sidebar.Height-80),Size=new Size(180,28),Anchor=AnchorStyles.Left|AnchorStyles.Bottom,TabIndex=5};
             sidebar.Controls.Add(settings);sidebar.Controls.Add(update);
             sidebar.Resize+=delegate {settings.Top=sidebar.Height-118;update.Top=sidebar.Height-80;};
             update.Click+=async delegate {await CheckForAppUpdatesAsync(false);};
@@ -25,7 +25,7 @@ namespace FontPocket {
             BindAction(update,"공식 배포처에서 앱 업데이트를 확인합니다.",()=>checkingAppUpdate?"업데이트 확인 중입니다.":null,true);
             BindAction(settings,"언어와 자동 업데이트 확인을 설정합니다.",()=>checkingAppUpdate?"업데이트 확인 중입니다.":null,true);
             Shown+=async delegate {
-                if(Environment.GetEnvironmentVariable("FONTPOCKET_TEST")=="1" || Environment.GetCommandLineArgs().Any(a=>a.StartsWith("--")))return;
+                if(Environment.GetEnvironmentVariable("FONTPOCKET_TEST")=="1" || Environment.GetCommandLineArgs().Length>1)return;
                 await CheckForAppUpdatesAsync(true);
             };
         }

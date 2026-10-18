@@ -11,6 +11,11 @@ namespace FontPocket {
         static FontItem Item(string name, params Face[] faces) { return new FontItem(name) { Metadata = new FontMetadata { Faces = faces.ToList() } }; }
         static Face F(string style, bool variable) { return new Face { Family = "Test Sans", Style = style, Variable = variable }; }
         public static void Local(string root, List<string> report) {
+            FontDiscoveryTests.Run(report);
+            WebFontExportTests.Run(root,report);
+            ManagerFilterTests.Run(root,report);
+            FontImportTests.Run(root,report);
+            FileAssociationTests.Run(report);
             string dir = Environment.GetFolderPath(Environment.SpecialFolder.Fonts);
             string regular = Path.Combine(dir, "arial.ttf"), bold = Path.Combine(dir, "arialbd.ttf");
             var a = FontMetadata.Read(regular); var b = FontMetadata.Read(bold);

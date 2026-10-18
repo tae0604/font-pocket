@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.Drawing.Text;
@@ -39,7 +39,7 @@ namespace FontPocket {
             using(var matrix=new Matrix(textScale*scale,0,0,textScale*scale,
                 (iconWidth+gap-bounds.X*textScale)*scale,
                 y+(iconHeight-(323f-308.438f)*iconWidth/389f-textHeight-bounds.Y*textScale)*scale))
-            using(var brush=new SolidBrush(Color.FromArgb(32,38,48))) {
+            using(var brush=new SolidBrush(PocketTheme.Ink)) {
                 path.Transform(matrix);e.Graphics.SmoothingMode=SmoothingMode.AntiAlias;e.Graphics.FillPath(brush,path);
             }
         }
@@ -79,3 +79,4 @@ namespace FontPocket {
         }
     }
 }
+

@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -9,8 +9,10 @@ using System.Web.Script.Serialization;
 
 namespace FontPocket {
     public enum FontVariant { Unknown, Static, Variable }
-    public class DownloadLink {
+    public partial class DownloadLink {
         public string Url, Title;
+        public string FamilyName;
+        public long SizeBytes=-1;
         public FontVariant Variant;
         public bool FormatOverride;
         public string FileName { get { return Uri.UnescapeDataString(Path.GetFileName(new Uri(Url).AbsolutePath)); } }
@@ -18,7 +20,7 @@ namespace FontPocket {
         public override string ToString() {
             int formats = Selection.LinkFormats(this);
             string format = formats == 1 ? "TTF" : formats == 2 ? "OTF" : formats == 4 ? "TTC" : formats == 3 ? "TTF + OTF" : "ZIP / 폰트";
-            string name = String.IsNullOrWhiteSpace(Title) || Regex.IsMatch(Title.Trim(), @"^(TTF|OTF|TTC|다운로드|Download)$", RegexOptions.IgnoreCase) ? FileName : Title + " · " + FileName;
+            string name = String.IsNullOrWhiteSpace(Title) || Regex.IsMatch(Title.Trim(), @"^(TTF|OTF|TTC|다운로드|Download)$", RegexOptions.IgnoreCase) ? FileName : !String.IsNullOrEmpty(FileName)&&Title.IndexOf(FileName,StringComparison.OrdinalIgnoreCase)>=0 ? Title : Title + " · " + FileName;
             return KindLabel + "  ·  " + format + "  ·  " + name;
         }
     }
@@ -28,10 +30,10 @@ namespace FontPocket {
         public List<DownloadLink> Files = new List<DownloadLink>();
         public List<DownloadLink> Pages = new List<DownloadLink>();
     }
-    public static class NoonnuDownload {
+    public static partial class NoonnuDownload {
         public static FontVariant InferVariant(string url, string title, string context) {
             string explicitText = Uri.UnescapeDataString((url ?? "") + " " + (title ?? ""));
-            if (Regex.IsMatch(explicitText, @"variable|가변|(?:^|[\s/_\-.])vf(?:$|[\s/_\-.])", RegexOptions.IgnoreCase)) return FontVariant.Variable;
+            if (Regex.IsMatch(explicitText, @"\[[^\]]+\]|variable|가변|(?:^|[\s/_\-.])vf(?:$|[\s/_\-.])", RegexOptions.IgnoreCase)) return FontVariant.Variable;
             if (Regex.IsMatch(explicitText, @"static|정적", RegexOptions.IgnoreCase)) return FontVariant.Static;
             var headings = Regex.Matches(context ?? "", @"<(?:h[1-6]|p|legend|span)\b[^>]*>\s*(?<k>Static|Variable|정적|가변)(?:\s+(?:Fonts?|폰트))?\s*</", RegexOptions.IgnoreCase);
             if (headings.Count == 0) return FontVariant.Unknown;
@@ -54,6 +56,7 @@ namespace FontPocket {
                 if (String.IsNullOrWhiteSpace(raw) || raw == "#" || raw.StartsWith("javascript:", StringComparison.OrdinalIgnoreCase)) {
                     raw = Attribute(attrs, "data-href");
                     if (String.IsNullOrWhiteSpace(raw)) raw = Attribute(attrs, "data-url");
+                    if (String.IsNullOrWhiteSpace(raw)) raw = Attribute(attrs, "data-download-url");
                     if (String.IsNullOrWhiteSpace(raw)) {
                         // Recognize literal navigation only. Never execute page JavaScript.
                         var nav = Regex.Match(Attribute(attrs, "onclick"), @"(?:location(?:\.href)?\s*=\s*|(?:window\.)?open\s*\(\s*|location\.(?:assign|replace)\s*\(\s*)['""](?<u>[^'""]+)['""]", RegexOptions.IgnoreCase);
@@ -62,11 +65,17 @@ namespace FontPocket {
                 }
                 if (String.IsNullOrWhiteSpace(raw)) continue;
                 if (raw.StartsWith("#") || !Uri.TryCreate(new Uri(baseUrl), raw, out url) || url.Scheme != "https") continue;
+                url=NormalizeFontUrl(url);
+                if(Regex.IsMatch(Attribute(attrs,"rel"),@"(?:^|\s)sponsored(?:$|\s)",RegexOptions.IgnoreCase))continue;
                 string title = Text(m.Groups["text"].Value);
+                string downloadName=Attribute(attrs,"download");
+                if(Regex.IsMatch(downloadName,@"\.(zip|ttf|otf|ttc|otc|sfnt|woff2?)$",RegexOptions.IgnoreCase))title="Download "+downloadName+" "+title;
                 if (String.IsNullOrWhiteSpace(title)) title = Attribute(attrs, "title") + " " + Attribute(attrs, "aria-label");
                 if (String.IsNullOrWhiteSpace(title)) { var image = Regex.Match(m.Groups["text"].Value, @"<img\b(?<a>[^>]*)>", RegexOptions.IgnoreCase); if (image.Success) title = Attribute(image.Groups["a"].Value, "alt"); }
                 int start = Math.Max(0, m.Index - 1800);
-                if (seen.Add(url.AbsoluteUri)) result.Add(new DownloadLink { Url = url.AbsoluteUri, Title = title.Trim(), Variant = InferVariant(url.AbsoluteUri, title, html.Substring(start, m.Index - start)) });
+                var candidate=new DownloadLink {Url=url.AbsoluteUri,Title=title.Trim(),Variant=InferVariant(url.AbsoluteUri,title,html.Substring(start,m.Index-start))};
+                if(seen.Add(url.AbsoluteUri))result.Add(candidate);
+                else {var existing=result.First(x=>x.Url==url.AbsoluteUri);if((!FileLink(existing)&&FileLink(candidate))||(String.IsNullOrWhiteSpace(existing.Title)&&!String.IsNullOrWhiteSpace(candidate.Title))){existing.Title=candidate.Title;existing.Variant=candidate.Variant;}}
             }
             return result;
         }
@@ -86,7 +95,7 @@ namespace FontPocket {
                 Uri uri = new Uri(url); CheckUri(uri);
                 var request = SecureHttp.Create(uri.AbsoluteUri);
                 request.AllowAutoRedirect = false; request.Timeout = 20000; request.ReadWriteTimeout = 20000;
-                request.UserAgent = "FontPocket/3.1 (+Windows desktop font manager)";
+                request.UserAgent = "FontPocket/" + UpdateClient.CurrentVersion.ToString(3) + " (+Windows desktop font manager)";
                 request.Accept = "*/*"; request.AutomaticDecompression = DecompressionMethods.GZip | DecompressionMethods.Deflate;
                 var response = (HttpWebResponse)request.GetResponse(); int status = (int)response.StatusCode;
                 if (status >= 300 && status < 400) {
@@ -101,10 +110,13 @@ namespace FontPocket {
         public static string Html(string url, Func<bool> cancelled, out string finalUrl) {
             using (var response = Open(url, cancelled)) {
                 finalUrl = response.ResponseUri.AbsoluteUri;
+                string downloadPage=HeaderDownloadPage(finalUrl,response.Headers["Content-Disposition"],response.ContentType);
+                if(downloadPage!=null)return downloadPage;
                 using (var s = response.GetResponseStream()) using (var memory = new MemoryStream()) {
                     Copy(s, memory, 8L * 1024 * 1024, cancelled, null, -1);
                     Encoding encoding = Encoding.UTF8;
                     try { if (!String.IsNullOrEmpty(response.CharacterSet)) encoding = Encoding.GetEncoding(response.CharacterSet); } catch { }
+                    if(memory.Length==0)throw new IOException("사이트가 빈 응답을 반환했습니다. 브라우저에서 다운로드한 ZIP 또는 폰트 파일을 추가해 주세요.");
                     string html = encoding.GetString(memory.ToArray());
                     var charset = Regex.Match(html, @"charset\s*=\s*[""']?(?<c>[a-zA-Z0-9_-]+)", RegexOptions.IgnoreCase);
                     if (charset.Success) { try { html = Encoding.GetEncoding(charset.Groups["c"].Value).GetString(memory.ToArray()); } catch { } }
@@ -124,8 +136,12 @@ namespace FontPocket {
         static bool FileLink(DownloadLink link) {
             string path = Uri.UnescapeDataString(new Uri(link.Url).PathAndQuery).ToLowerInvariant();
             string label = (link.Title + " " + path).ToLowerInvariant();
-            if (Regex.IsMatch(label, @"woff|webfont|웹폰트|\.exe\b|\.dmg\b|/archive/|\.tar\.gz")) return false;
-            return Regex.IsMatch(path, @"\.(zip|ttf|otf|ttc)(?:$|[?&#])") ||
+            if (Regex.IsMatch(label, @"woff|webfont|웹폰트|\.exe\b|\.dmg\b|\.tar\.gz|source[ _-]*code|소스[ _-]*(?:코드|파일)|wallpaper|배경[ _-]*화면|brochure",RegexOptions.IgnoreCase)) return false;
+            Uri uri=new Uri(link.Url);
+            if(uri.Host.Equals("github.com",StringComparison.OrdinalIgnoreCase)&&Regex.IsMatch(uri.AbsolutePath,@"/archive/",RegexOptions.IgnoreCase))return false;
+            if((uri.Host.Equals("fontsquirrel.com",StringComparison.OrdinalIgnoreCase)||uri.Host.Equals("www.fontsquirrel.com",StringComparison.OrdinalIgnoreCase))&&Regex.IsMatch(uri.AbsolutePath,@"^/fonts/download/[^/]+/?$"))return true;
+            if(uri.Host.Equals("github.com",StringComparison.OrdinalIgnoreCase)&&Regex.IsMatch(uri.AbsolutePath,@"^/[^/]+/[^/]+/(blob|tree)/"))return false;
+            return Regex.IsMatch(path, @"\.(zip|ttf|otf|ttc|otc|sfnt|woff2?)(?:$|[?&#])") ||
                 (Regex.IsMatch(label, @"다운로드|download|첨부") && Regex.IsMatch(label, @"\bttf\b|\botf\b|\bttc\b|\bzip\b"));
         }
         public static int Score(DownloadLink link) {
@@ -134,6 +150,7 @@ namespace FontPocket {
             if (s.Contains("windows") || s.Contains("윈도우")) score += 10;
             if (s.Contains("zip")) score += 5;
             if (s.Contains("otf")) score += 2;
+            if(Regex.IsMatch(s,@"italic|oblique",RegexOptions.IgnoreCase))score-=1;
             if (Regex.IsMatch(s, @"(?:pretendard|sans|font)(?:jp|jp-)|일본어|japanese|\bmac\b|\bweb\b|variable|가변")) score -= 30;
             return score;
         }
@@ -149,15 +166,18 @@ namespace FontPocket {
             return Discover(address, cancelled, report, delegate(string url, out string final) { return Html(url, cancelled, out final); });
         }
         public static DownloadPlan Discover(string address, Func<bool> cancelled, Action<string> report, PageFetcher fetch) {
-            Uri uri = InputUri(address); string final;
+            Uri uri = NormalizeFontUrl(InputUri(address)); string final;
             bool isNoonnu = (uri.Host.Equals("noonnu.cc", StringComparison.OrdinalIgnoreCase) || uri.Host.Equals("www.noonnu.cc", StringComparison.OrdinalIgnoreCase)) && Regex.IsMatch(uri.AbsolutePath, @"^/font_page/\d+/?$");
             var plan = new DownloadPlan { Input = uri.AbsoluteUri, Source = uri.AbsoluteUri, Noonnu = isNoonnu ? uri.AbsoluteUri : null };
+            // Explicit webfont file URLs are imports; do not crawl CSS subset URLs on ordinary pages.
+            if(Regex.IsMatch(uri.AbsolutePath,@"\.(woff2?)$",RegexOptions.IgnoreCase)) {plan.Files.Add(new DownloadLink {Url=uri.AbsoluteUri,Title=Path.GetFileName(uri.AbsolutePath),Variant=InferVariant(uri.AbsoluteUri,"","")});return plan;}
             if (isNoonnu) {
                 report("눈누에서 제작사 링크를 찾는 중…");
                 var source = Links(fetch(uri.AbsoluteUri, out final), final).FirstOrDefault(x => x.Title.Contains("다운로드 페이지"));
                 if (source == null) throw new InvalidDataException("눈누의 다운로드 페이지 링크를 찾지 못했습니다.");
                 plan.Source = source.Url;
             }
+            if(TryGoogleFonts(uri,plan,cancelled,report,fetch))return plan;
             var pending = new Queue<Tuple<string, int>>(); var seen = new HashSet<string>(); var scheduled = new HashSet<string>();
             pending.Enqueue(Tuple.Create(plan.Source, 0)); scheduled.Add(plan.Source);
             for (int count = 0; pending.Count > 0 && count < 12; count++) {
@@ -171,19 +191,24 @@ namespace FontPocket {
                 Uri sourceUri = new Uri(current);
                 if (sourceUri.Host.Equals("github.com", StringComparison.OrdinalIgnoreCase)) {
                     string[] parts = sourceUri.AbsolutePath.Trim('/').Split('/');
-                    if (parts.Length >= 2) {
+                    if (parts.Length >= 2 && !(parts.Length>=3&&(parts[2]=="tree"||parts[2]=="blob"))) {
                         try {
-                            string api = "https://api.github.com/repos/" + parts[0] + "/" + parts[1] + "/releases/latest";
+                            string releasePath=parts.Length>=4&&parts[2]=="releases"&&parts[3]=="tag"?
+                                "tags/"+Uri.EscapeDataString(Uri.UnescapeDataString(String.Join("/",parts.Skip(4).ToArray()))):"latest";
+                            // A folder URL is not a request for another release of the repository.
+                            string api = "https://api.github.com/repos/" + parts[0] + "/" + parts[1] + "/releases/"+releasePath;
                             string json = fetch(api, out final);
                             var data = new JavaScriptSerializer().DeserializeObject(json) as Dictionary<string, object>;
                             if (data != null && data.ContainsKey("assets")) foreach (var o in (object[])data["assets"]) {
                                 var asset = (Dictionary<string, object>)o;
                                 var link = new DownloadLink { Url = (string)asset["browser_download_url"], Title = (string)asset["name"] };
+                                if(asset.ContainsKey("size"))link.SizeBytes=Convert.ToInt64(asset["size"]);
                                 link.Variant = InferVariant(link.Url, link.Title, "");
                                 if (FileLink(link)) plan.Files.Add(link);
                             }
                             if (plan.Files.Count > 0) break;
-                        } catch (WebException) { report("GitHub API 연결 제한 · 제작사 페이지에서 다시 찾는 중…"); }
+                        } catch (OperationCanceledException) {throw;}
+                          catch (Exception) { report("GitHub API 연결 제한 · 제작사 페이지에서 다시 찾는 중…"); }
                     }
                 }
                 string html = fetch(current, out final); var links = Links(html, final);
@@ -232,6 +257,8 @@ namespace FontPocket {
                 byte[] magic = new byte[4]; using (var s = File.OpenRead(part)) if (s.Read(magic, 0, 4) != 4) throw new InvalidDataException("다운로드 파일이 비어 있습니다.");
                 string tag = Encoding.ASCII.GetString(magic), ext;
                 if (magic[0] == 0x50 && magic[1] == 0x4b && magic[2] == 3 && magic[3] == 4) ext = ".zip";
+                else if (tag == "wOFF") ext = ".woff";
+                else if (tag == "wOF2") ext = ".woff2";
                 else if (tag == "OTTO") ext = ".otf";
                 else if (tag == "ttcf") ext = ".ttc";
                 else if (tag == "true" || (magic[0] == 0 && magic[1] == 1 && magic[2] == 0 && magic[3] == 0)) ext = ".ttf";

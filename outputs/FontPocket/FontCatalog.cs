@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.Drawing.Printing;
@@ -23,8 +23,8 @@ namespace FontPocket {
             int measured=rowHeight;
             for(int row=first;row<end;row++) for(int col=0;col<Columns;col++) {int index=row*Columns+col;if(index>=Fonts.Count) break;var preview=FontFor(Fonts[index].Path);if(preview!=null) measured=Math.Max(measured,(int)Math.Ceiling(e.Graphics.MeasureString(Sample,preview.Font,Math.Max(40,width-28)).Height)+64);}
             if(measured!=rowHeight) {int anchor=-offset/rowHeight;int within=-offset%rowHeight;rowHeight=measured;AutoScrollMinSize=new Size(0,((Fonts.Count+Columns-1)/Columns)*rowHeight);AutoScrollPosition=new Point(0,anchor*rowHeight+within);offset=AutoScrollPosition.Y;first=Math.Max(0,-offset/rowHeight);end=Math.Min((Fonts.Count+Columns-1)/Columns,first+ClientSize.Height/rowHeight+2);}
-            using(var border=new Pen(Color.FromArgb(232,235,239))) using(var ink=new SolidBrush(Color.FromArgb(32,38,48))) {
-                for(int row=first;row<end;row++) for(int col=0;col<Columns;col++) { int index=row*Columns+col; if(index>=Fonts.Count) break; var f=Fonts[index]; var r=new Rectangle(col*width,row*rowHeight+offset,width,rowHeight); e.Graphics.DrawRectangle(border,r); TextRenderer.DrawText(e.Graphics,f.Name+(f.Disabled?" · 비활성":""),Font,new Rectangle(r.X+14,r.Y+10,r.Width-28,24),Color.DimGray,TextFormatFlags.EndEllipsis|TextFormatFlags.SingleLine); var p=FontFor(f.Path); if(p!=null) e.Graphics.DrawString(Sample,p.Font,ink,new RectangleF(r.X+14,r.Y+42,r.Width-28,r.Height-54)); else TextRenderer.DrawText(e.Graphics,"미리보기를 지원하지 않는 폰트입니다.",Font,new Point(r.X+14,r.Y+55),Color.Gray); }
+            using(var border=new Pen(PocketTheme.Border)) using(var ink=new SolidBrush(PocketTheme.Ink)) {
+                for(int row=first;row<end;row++) for(int col=0;col<Columns;col++) { int index=row*Columns+col; if(index>=Fonts.Count) break; var f=Fonts[index]; var r=new Rectangle(col*width,row*rowHeight+offset,width,rowHeight); e.Graphics.DrawRectangle(border,r); TextRenderer.DrawText(e.Graphics,f.Name+(f.Disabled?" · 비활성":""),Font,new Rectangle(r.X+14,r.Y+10,r.Width-28,24),PocketTheme.Muted,TextFormatFlags.EndEllipsis|TextFormatFlags.SingleLine); var p=FontFor(f.Path); if(p!=null) e.Graphics.DrawString(Sample,p.Font,ink,new RectangleF(r.X+14,r.Y+42,r.Width-28,r.Height-54)); else TextRenderer.DrawText(e.Graphics,"미리보기를 지원하지 않는 폰트입니다.",Font,new Point(r.X+14,r.Y+55),PocketTheme.Muted); }
             }
         }
         protected override void OnMouseDoubleClick(MouseEventArgs e) { base.OnMouseDoubleClick(e); int width=Math.Max(100,ContentWidth/Columns),index=((e.Y-AutoScrollPosition.Y)/rowHeight)*Columns+Math.Min(Columns-1,e.X/width); if(index>=0 && index<Fonts.Count && Open!=null) Open(Fonts[index]); }
@@ -56,3 +56,4 @@ namespace FontPocket {
         }
     }
 }
+

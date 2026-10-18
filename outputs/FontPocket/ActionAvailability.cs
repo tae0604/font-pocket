@@ -10,6 +10,7 @@ namespace FontPocket {
     // form after a hover delay, without enabling the button or intercepting clicks.
     sealed class DisabledActionHints : IDisposable {
         readonly Form owner; readonly ToolTip tips; readonly Control[] targets;
+        internal bool Suspended;
         readonly Timer timer = new Timer(); Control hovered; string message; DateTime since; bool shown;
         internal DisabledActionHints(Form owner, ToolTip tips, IEnumerable<Control> targets) {
             this.owner=owner; this.tips=tips; this.targets=targets.ToArray();
@@ -17,7 +18,7 @@ namespace FontPocket {
         }
         void Tick() {
             Control next=null; Point position=Cursor.Position;
-            if (!owner.IsDisposed && owner.Visible && Form.ActiveForm==owner && owner.WindowState!=FormWindowState.Minimized)
+            if (!Suspended && !owner.IsDisposed && owner.Visible && Form.ActiveForm==owner && owner.WindowState!=FormWindowState.Minimized)
                 next=targets.FirstOrDefault(c=>!c.IsDisposed && c.Visible && !c.Enabled && c.RectangleToScreen(c.ClientRectangle).Contains(position));
             string text=next==null?null:tips.GetToolTip(next);
             if(next!=hovered || text!=message) {
@@ -42,14 +43,19 @@ namespace FontPocket {
             actionRules.Add(new ActionRule { Control=control,Description=description,Reason=reason,Idle=idle });
         }
         void BindMenu(ContextMenuStrip menu,Func<string,string> reason,Func<string,string> description) {
-            menu.ShowItemToolTips=true;
-            foreach(ToolStripItem item in menu.Items) {
-                if(item is ToolStripSeparator) continue;
-                string text=item.Text;
-                actionRules.Add(new ActionRule { MenuItem=item,Description=description(text),Reason=()=>reason(text) });
-                item.Click+=delegate { RefreshActionAvailability(); };
-            }
+            menu.ShowItemToolTips=false;
+            menu.Opening+=delegate {if(actionTips!=null){actionTips.Hide(this);actionTips.Active=false;}if(disabledActionHints!=null)disabledActionHints.Suspended=true;};
+            menu.Closed+=delegate {if(!IsDisposed&&actionTips!=null)actionTips.Active=true;if(disabledActionHints!=null)disabledActionHints.Suspended=false;};
+            BindMenuItems(menu.Items,reason,description);
             menu.Opening+=delegate { RefreshActionAvailability(); };
+        }
+        void BindMenuItems(ToolStripItemCollection items,Func<string,string> reason,Func<string,string> description) {
+            foreach(ToolStripItem item in items) {
+                if(item is ToolStripSeparator)continue;string text=item.Text;
+                actionRules.Add(new ActionRule {MenuItem=item,Description=description(text),Reason=()=>reason(text)});
+                item.Click+=delegate {RefreshActionAvailability();};
+                var group=item as ToolStripDropDownItem;if(group!=null&&group.HasDropDownItems){BindMenuItems(group.DropDownItems,reason,description);group.DropDown.ShowItemToolTips=false;group.DropDownOpening+=delegate {RefreshActionAvailability();};}
+            }
         }
         static IEnumerable<Control> Descendants(Control root) {
             foreach(Control child in root.Controls) { yield return child; foreach(var nested in Descendants(child)) yield return nested; }
@@ -102,7 +108,7 @@ namespace FontPocket {
                     case "대기열에 추가": case "바로 설치": return LinkActionReason();
                     case "선택 제거": return list.SelectedItems.Count>0?null:"목록에서 제거할 파일 행을 선택하세요.";
                     case "목록 비우기": return items.Count>0?null:"대기열이 비어 있습니다.";
-                    case "상세 정보": case "상세 정보 · 문자표": case "미리보기":
+                    case "크게 보기": case "상세 정보": case "상세 정보 · 문자표": case "미리보기":
                         return list.SelectedItems.Count>0 || list.CheckedItems.Count>0?null:"미리 볼 폰트를 선택하거나 체크하세요.";
                     case "체크 폰트 비교": return ComparisonReason(list.CheckedItems.Cast<ListViewItem>().Select(r=>((FontItem)r.Tag).Path));
                     case "선택한 폰트 설치": return list.CheckedItems.Cast<ListViewItem>().Any(r=>((FontItem)r.Tag).Metadata!=null && Selection.CanInstall((FontItem)r.Tag,FormatMode,includeTtc.Checked))?null:"설치할 폰트를 체크하세요.";
@@ -128,7 +134,7 @@ namespace FontPocket {
         string ManagerActionReason(string text) {
             var highlighted=HighlightedFont();
             switch(text) {
-                case "상세 정보": case "상세 정보 · 문자표": case "메모·태그": case "즐겨찾기": case "파일 위치 열기":
+                case "크게 보기": case "상세 정보": case "상세 정보 · 문자표": case "메모·태그": case "즐겨찾기": case "파일 위치 열기":
                     return highlighted!=null?null:"목록에서 폰트를 선택하세요.";
                 case "버전 관리": return highlighted==null?"버전을 관리할 폰트를 선택하세요.":highlighted.Identity==null?"이 폰트의 식별 정보를 읽을 수 없습니다.":null;
                 case "견본 보기": case "표시된 항목 선택": return managerList.Items.Count>0?null:"표시된 폰트가 없습니다.";
@@ -149,7 +155,12 @@ namespace FontPocket {
         }
         string ActionDescription(int section,string text) {
             switch(text) {
-                case "상세 정보": case "상세 정보 · 문자표": return "선택한 폰트의 문자표, 지원 범위와 제작 정보를 봅니다.";
+                case "폰트 가져오기": return "주소, 파일 또는 ZIP에서 새 폰트를 가져와 설치합니다.";
+                case "필터 ▾": return "굵기, 언어와 파일 형식 등의 세부 조건을 펼칩니다.";
+                case "관리 ▾": return "폰트 사용 설정, 중복 정리, 백업과 자세한 목록을 엽니다.";
+                case "설치 옵션 ▾": return "설치할 파일 형식을 선택합니다. 잘 모르겠으면 기본값을 사용하세요.";
+                case "추가 작업 ▾": return "대기열 정리, 비교와 상세 정보를 엽니다.";
+                case "크게 보기": case "상세 정보": case "상세 정보 · 문자표": return "선택한 폰트의 문자표, 지원 범위와 제작 정보를 봅니다.";
                 case "견본 보기": return "현재 표시된 모든 폰트의 견본을 한 화면에서 봅니다.";
                 case "중복 정리": return "중복 폰트를 찾고, 남길 폰트를 확인한 뒤 정리합니다.";
                 case "활성화": return "선택한 비활성 폰트를 다시 사용할 수 있게 합니다.";

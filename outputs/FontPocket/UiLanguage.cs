@@ -34,7 +34,7 @@ namespace FontPocket {
             try {
                 string value=File.Exists(PreferencePath)?File.ReadAllText(PreferencePath).Trim():Convert.ToString(Registry.GetValue(@"HKEY_CURRENT_USER\Software\FontPocket","UILanguage",null));
                 if(value=="en" || value=="ko")return value;
-            }catch(IOException){}catch(UnauthorizedAccessException){}
+            }catch(IOException){}catch(UnauthorizedAccessException){}catch(System.Security.SecurityException){}
             return System.Globalization.CultureInfo.CurrentUICulture.TwoLetterISOLanguageName=="ko"?"ko":"en";
         }
         public static void Save(string code) {

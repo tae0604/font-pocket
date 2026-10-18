@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -7,7 +7,7 @@ using System.Web.Script.Serialization;
 
 namespace FontPocket {
     public static class DataPaths { public static string Root { get { string test=Environment.GetEnvironmentVariable("FONTPOCKET_TEST_DATA");return String.IsNullOrWhiteSpace(test)?Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),"FontPocket"):Path.GetFullPath(test); } } }
-    public class FontNote { public string Key, Memo="", Tags=""; public bool Favorite; public List<string> Collections=new List<string>(); }
+    public class FontNote { public string Key, Memo="", Tags="", AddedUtc; public bool Favorite; public List<string> Collections=new List<string>(); }
     public class FontCollection { public string Id=Guid.NewGuid().ToString("N"), Name, Query=""; public bool Smart; }
     public class PersonalData { public int Schema=1; public List<FontNote> Notes=new List<FontNote>(); public List<FontCollection> Collections=new List<FontCollection>(); }
     public class PersonalLibrary {

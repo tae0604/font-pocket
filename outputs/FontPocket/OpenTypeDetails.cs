@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -15,6 +15,7 @@ namespace FontPocket {
         public List<FontAxis> Axes = new List<FontAxis>();
         public List<string> Checks = new List<string>();
         public int GlyphCount, FaceCount, StyleFlags; public bool CmapSupported;
+        internal int FilterScripts;
         public string Name(int id) { string value; return Names.TryGetValue(id, out value) ? value : "정보 없음"; }
         public string Family { get {return Names.ContainsKey(16)?Name(16):Name(1);} }
         public string Subfamily { get {return Names.ContainsKey(17)?Name(17):Name(2);} }
@@ -45,14 +46,33 @@ namespace FontPocket {
         public static OpenTypeDetails Read(string path,int faceIndex,bool checksums) {
             using(var s=File.OpenRead(path)) return new Reader(s).Read(faceIndex,checksums);
         }
+        internal static List<FilterFace> ReadFilter(ManagedFont font,bool scripts) {
+            var result=new List<FilterFace>();
+            using(var stream=File.OpenRead(font.Path)) {
+                var reader=new Reader(stream);reader.FilterOnly=true;reader.IncludeScripts=scripts;
+                for(int i=0;i<font.Metadata.Faces.Count;i++) {
+                    var face=font.Metadata.Faces[i];var info=reader.Read(i,false);
+                    var axis=info.Axes.FirstOrDefault(a=>a.Tag=="wght");
+                    result.Add(new FilterFace {Variable=face.Variable,MinimumWeight=axis==null?face.Weight:axis.Min,MaximumWeight=axis==null?face.Weight:axis.Max,Scripts=info.FilterScripts});
+                }
+            }
+            return result;
+        }
         class Table { public long Offset, Length; public uint Checksum; }
         class Reader {
-            Stream stream;
-            public Reader(Stream s) { stream=s; }
-            byte[] Bytes(long p,int n) { if(p<0 || n<0 || p>stream.Length-n) throw new InvalidDataException("폰트 데이터 범위를 벗어났습니다."); stream.Position=p; var b=new byte[n]; int read=0,k; while(read<n && (k=stream.Read(b,read,n-read))>0) read+=k; if(read!=n) throw new EndOfStreamException(); return b; }
-            int U16(long p) { var b=Bytes(p,2); return (b[0]<<8)|b[1]; }
-            uint U32(long p) { var b=Bytes(p,4); return ((uint)b[0]<<24)|((uint)b[1]<<16)|((uint)b[2]<<8)|b[3]; }
-            string Tag(long p) { return Encoding.ASCII.GetString(Bytes(p,4)); }
+            Stream stream;readonly long length;
+            internal bool FilterOnly,IncludeScripts;
+            byte[] window=new byte[1048576];long windowStart=-1;int windowCount;
+            byte ByteAt(long p) {
+                if(p<0||p>=length)throw new InvalidDataException("폰트 데이터 범위를 벗어났습니다.");
+                if(p<windowStart||p>=windowStart+windowCount){windowStart=p;stream.Position=p;windowCount=stream.Read(window,0,window.Length);if(windowCount==0)throw new EndOfStreamException();}
+                return window[(int)(p-windowStart)];
+            }
+            public Reader(Stream s) { stream=s;length=s.Length; }
+            byte[] Bytes(long p,int n) { if(p<0 || n<0 || p>length-n) throw new InvalidDataException("폰트 데이터 범위를 벗어났습니다."); stream.Position=p; var b=new byte[n]; int read=0,k; while(read<n && (k=stream.Read(b,read,n-read))>0) read+=k; if(read!=n) throw new EndOfStreamException(); return b; }
+            int U16(long p) { return (ByteAt(p)<<8)|ByteAt(p+1); }
+            uint U32(long p) { return ((uint)ByteAt(p)<<24)|((uint)ByteAt(p+1)<<16)|((uint)ByteAt(p+2)<<8)|ByteAt(p+3); }
+            string Tag(long p) { return new string(new[]{(char)ByteAt(p),(char)ByteAt(p+1),(char)ByteAt(p+2),(char)ByteAt(p+3)}); }
             double Fixed(long p) { return unchecked((int)U32(p))/65536.0; }
             void Within(Table t,long p,long n) { if(p<t.Offset || n<0 || p>t.Offset+t.Length-n) throw new InvalidDataException("손상된 폰트 테이블입니다."); }
             public OpenTypeDetails Read(int index,bool checksums) {
@@ -62,10 +82,10 @@ namespace FontPocket {
                 uint magic=U32(face); if(magic!=0x10000 && magic!=0x4f54544f && magic!=0x74727565) throw new InvalidDataException("지원하지 않는 OpenType 헤더입니다.");
                 int count=U16(face+4); if(count==0 || count>4096) throw new InvalidDataException("잘못된 테이블 개수입니다.");
                 var tables=new Dictionary<string,Table>();
-                for(int i=0;i<count;i++) { long p=face+12+i*16; var t=new Table { Offset=U32(p+8),Length=U32(p+12),Checksum=U32(p+4) }; if(t.Offset>stream.Length-t.Length) throw new InvalidDataException("테이블이 파일 밖을 가리킵니다."); string tag=Tag(p); if(tables.ContainsKey(tag)) throw new InvalidDataException("중복 테이블: "+tag); tables[tag]=t; }
+                for(int i=0;i<count;i++) { long p=face+12+i*16; var t=new Table { Offset=U32(p+8),Length=U32(p+12),Checksum=U32(p+4) }; if(t.Offset>length-t.Length) throw new InvalidDataException("테이블이 파일 밖을 가리킵니다."); string tag=Tag(p); if(tables.ContainsKey(tag)) throw new InvalidDataException("중복 테이블: "+tag); tables[tag]=t; }
                 if(!tables.ContainsKey("name") || !tables.ContainsKey("maxp") || !tables.ContainsKey("cmap")) throw new InvalidDataException("필수 name / maxp / cmap 테이블이 없습니다.");
-                ReadNames(tables["name"],d); var maxp=tables["maxp"]; Within(maxp,maxp.Offset,6); d.GlyphCount=U16(maxp.Offset+4); if(d.GlyphCount==0) throw new InvalidDataException("폰트에 글리프가 없습니다.");
-                ReadCmap(tables["cmap"],d); Table fvar;
+                if(!FilterOnly)ReadNames(tables["name"],d); var maxp=tables["maxp"]; Within(maxp,maxp.Offset,6); d.GlyphCount=U16(maxp.Offset+4); if(d.GlyphCount==0) throw new InvalidDataException("폰트에 글리프가 없습니다.");
+                if(!FilterOnly||IncludeScripts)ReadCmap(tables["cmap"],d); Table fvar;
                 Table styleTable;if(tables.TryGetValue("OS/2",out styleTable) && styleTable.Length>=64) {int flags=U16(styleTable.Offset+62);d.StyleFlags=((flags&32)!=0?1:0)+((flags&513)!=0?2:0);}else if(tables.TryGetValue("head",out styleTable) && styleTable.Length>=46) d.StyleFlags=U16(styleTable.Offset+44)&3;
                 if(tables.TryGetValue("fvar",out fvar)) {
                     Within(fvar,fvar.Offset,16); long p=fvar.Offset+U16(fvar.Offset+4); int axes=U16(fvar.Offset+8),size=U16(fvar.Offset+10);
@@ -94,7 +114,7 @@ namespace FontPocket {
                     string value=Encoding.BigEndianUnicode.GetString(Bytes(str,size)).Trim('\0',' '); if(value.Length==0) continue; d.Names[id]=value; scores[id]=score;
                 }
             }
-            void Add(OpenTypeDetails d,int c,long glyph) { if(glyph>0 && glyph<=65535 && c>=0 && c<=0x10ffff && !(c>=0xd800 && c<=0xdfff)) d.Characters[c]=(int)glyph; }
+            void Add(OpenTypeDetails d,int c,long glyph) { if(glyph>0 && glyph<=65535 && c>=0 && c<=0x10ffff && !(c>=0xd800 && c<=0xdfff)) { if(FilterOnly) { if(glyph>=d.GlyphCount)throw new InvalidDataException("문자 매핑이 글리프 범위를 벗어납니다.");d.FilterScripts|=FilterFace.ScriptMask(c); } else d.Characters[c]=(int)glyph; } }
             void ReadCmap(Table t,OpenTypeDetails d) {
                 Within(t,t.Offset,4); int n=U16(t.Offset+2); Within(t,t.Offset+4,n*8L);
                 // Choose one Unicode subtable, preferring full-repertoire mappings.

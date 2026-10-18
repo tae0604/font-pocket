@@ -1,5 +1,7 @@
-#define AppVersion "0.1.1"
+﻿#define AppVersion "0.1.3"
+#ifndef AppSource
 #define AppSource "..\FontPocket"
+#endif
 
 [Setup]
 #ifdef QABuild
@@ -44,7 +46,7 @@ CloseApplications=yes
 CloseApplicationsFilter=FontPocket.exe
 RestartApplications=no
 Uninstallable=yes
-ChangesAssociations=no
+ChangesAssociations=yes
 ChangesEnvironment=no
 #ifdef QABuild
 ; Isolated build: same payload/install/uninstall code without user registration.
@@ -59,6 +61,22 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 Name: "korean"; MessagesFile: "compiler:Languages\Korean.isl"
 
 [CustomMessages]
+korean.FontTypeLegacy=글꼴 파일
+english.FontTypeLegacy=Font file
+korean.FontTypeTTF=TrueType 글꼴
+english.FontTypeTTF=TrueType font
+korean.FontTypeOTF=OpenType 글꼴
+english.FontTypeOTF=OpenType font
+korean.FontTypeTTC=TrueType 글꼴 모음
+english.FontTypeTTC=TrueType font collection
+korean.FontTypeOTC=OpenType 글꼴 모음
+english.FontTypeOTC=OpenType font collection
+korean.FontTypeSFNT=SFNT 글꼴
+english.FontTypeSFNT=SFNT font
+korean.FontTypeWOFF=WOFF 웹 글꼴
+english.FontTypeWOFF=WOFF web font
+korean.FontTypeWOFF2=WOFF2 웹 글꼴
+english.FontTypeWOFF2=WOFF2 web font
 korean.DesktopIcon=바탕화면에 바로가기 만들기
 english.DesktopIcon=Create a desktop shortcut
 korean.Shortcuts=바로가기:
@@ -76,8 +94,72 @@ Name: "desktopicon"; Description: "{cm:DesktopIcon}"; GroupDescription: "{cm:Sho
 [Registry]
 Root: HKCU; Subkey: "Software\FontPocket"; ValueType: string; ValueName: "UILanguage"; ValueData: "{code:AppLanguage}"; Check: NotQABuild
 
+; Font file handlers: register choices without overwriting Windows defaults.
+Root: HKCU; Subkey: "Software\Classes\FontPocket.Font"; ValueType: string; ValueName: ""; ValueData: "{cm:FontTypeLegacy}"; Flags: uninsdeletekey; Check: NotQABuild
+Root: HKCU; Subkey: "Software\Classes\FontPocket.Font\DefaultIcon"; ValueType: string; ValueName: ""; ValueData: """{app}\FontPocket.exe"",0"; Check: NotQABuild
+Root: HKCU; Subkey: "Software\Classes\FontPocket.Font\shell\open\command"; ValueType: string; ValueName: ""; ValueData: """{app}\FontPocket.exe"" --open ""%1"""; Check: NotQABuild
+Root: HKCU; Subkey: "Software\Classes\Applications\FontPocket.exe"; ValueType: string; ValueName: "FriendlyAppName"; ValueData: "Font Pocket"; Flags: uninsdeletekey; Check: NotQABuild
+Root: HKCU; Subkey: "Software\Classes\Applications\FontPocket.exe\shell\open\command"; ValueType: string; ValueName: ""; ValueData: """{app}\FontPocket.exe"" --open ""%1"""; Check: NotQABuild
+Root: HKCU; Subkey: "Software\FontPocket\Capabilities"; ValueType: string; ValueName: "ApplicationName"; ValueData: "Font Pocket"; Flags: uninsdeletekey; Check: NotQABuild
+Root: HKCU; Subkey: "Software\FontPocket\Capabilities"; ValueType: string; ValueName: "ApplicationDescription"; ValueData: "Preview, install and manage fonts with Font Pocket."; Check: NotQABuild
+Root: HKCU; Subkey: "Software\FontPocket\Capabilities"; ValueType: string; ValueName: "ApplicationIcon"; ValueData: """{app}\FontPocket.exe"",0"; Check: NotQABuild
+Root: HKCU; Subkey: "Software\RegisteredApplications"; ValueType: string; ValueName: "Font Pocket"; ValueData: "Software\FontPocket\Capabilities"; Flags: uninsdeletevalue; Check: NotQABuild
+Root: HKCU; Subkey: "Software\Classes\.ttf\OpenWithProgids"; ValueType: string; ValueName: "FontPocket.Font.TTF"; ValueData: ""; Flags: uninsdeletevalue; Check: NotQABuild
+Root: HKCU; Subkey: "Software\Classes\Applications\FontPocket.exe\SupportedTypes"; ValueType: string; ValueName: ".ttf"; ValueData: ""; Check: NotQABuild
+Root: HKCU; Subkey: "Software\FontPocket\Capabilities\FileAssociations"; ValueType: string; ValueName: ".ttf"; ValueData: "FontPocket.Font.TTF"; Check: NotQABuild
+Root: HKCU; Subkey: "Software\Classes\.otf\OpenWithProgids"; ValueType: string; ValueName: "FontPocket.Font.OTF"; ValueData: ""; Flags: uninsdeletevalue; Check: NotQABuild
+Root: HKCU; Subkey: "Software\Classes\Applications\FontPocket.exe\SupportedTypes"; ValueType: string; ValueName: ".otf"; ValueData: ""; Check: NotQABuild
+Root: HKCU; Subkey: "Software\FontPocket\Capabilities\FileAssociations"; ValueType: string; ValueName: ".otf"; ValueData: "FontPocket.Font.OTF"; Check: NotQABuild
+Root: HKCU; Subkey: "Software\Classes\.ttc\OpenWithProgids"; ValueType: string; ValueName: "FontPocket.Font.TTC"; ValueData: ""; Flags: uninsdeletevalue; Check: NotQABuild
+Root: HKCU; Subkey: "Software\Classes\Applications\FontPocket.exe\SupportedTypes"; ValueType: string; ValueName: ".ttc"; ValueData: ""; Check: NotQABuild
+Root: HKCU; Subkey: "Software\FontPocket\Capabilities\FileAssociations"; ValueType: string; ValueName: ".ttc"; ValueData: "FontPocket.Font.TTC"; Check: NotQABuild
+Root: HKCU; Subkey: "Software\Classes\.otc\OpenWithProgids"; ValueType: string; ValueName: "FontPocket.Font.OTC"; ValueData: ""; Flags: uninsdeletevalue; Check: NotQABuild
+Root: HKCU; Subkey: "Software\Classes\Applications\FontPocket.exe\SupportedTypes"; ValueType: string; ValueName: ".otc"; ValueData: ""; Check: NotQABuild
+Root: HKCU; Subkey: "Software\FontPocket\Capabilities\FileAssociations"; ValueType: string; ValueName: ".otc"; ValueData: "FontPocket.Font.OTC"; Check: NotQABuild
+Root: HKCU; Subkey: "Software\Classes\.sfnt\OpenWithProgids"; ValueType: string; ValueName: "FontPocket.Font.SFNT"; ValueData: ""; Flags: uninsdeletevalue; Check: NotQABuild
+Root: HKCU; Subkey: "Software\Classes\Applications\FontPocket.exe\SupportedTypes"; ValueType: string; ValueName: ".sfnt"; ValueData: ""; Check: NotQABuild
+Root: HKCU; Subkey: "Software\FontPocket\Capabilities\FileAssociations"; ValueType: string; ValueName: ".sfnt"; ValueData: "FontPocket.Font.SFNT"; Check: NotQABuild
+Root: HKCU; Subkey: "Software\Classes\.woff\OpenWithProgids"; ValueType: string; ValueName: "FontPocket.Font.WOFF"; ValueData: ""; Flags: uninsdeletevalue; Check: NotQABuild
+Root: HKCU; Subkey: "Software\Classes\Applications\FontPocket.exe\SupportedTypes"; ValueType: string; ValueName: ".woff"; ValueData: ""; Check: NotQABuild
+Root: HKCU; Subkey: "Software\FontPocket\Capabilities\FileAssociations"; ValueType: string; ValueName: ".woff"; ValueData: "FontPocket.Font.WOFF"; Check: NotQABuild
+Root: HKCU; Subkey: "Software\Classes\.woff2\OpenWithProgids"; ValueType: string; ValueName: "FontPocket.Font.WOFF2"; ValueData: ""; Flags: uninsdeletevalue; Check: NotQABuild
+Root: HKCU; Subkey: "Software\Classes\Applications\FontPocket.exe\SupportedTypes"; ValueType: string; ValueName: ".woff2"; ValueData: ""; Check: NotQABuild
+Root: HKCU; Subkey: "Software\FontPocket\Capabilities\FileAssociations"; ValueType: string; ValueName: ".woff2"; ValueData: "FontPocket.Font.WOFF2"; Check: NotQABuild
+Root: HKCU; Subkey: "Software\Classes\FontPocket.Font.TTF"; ValueType: string; ValueName: ""; ValueData: "{cm:FontTypeTTF}"; Flags: uninsdeletekey; Check: NotQABuild
+Root: HKCU; Subkey: "Software\Classes\FontPocket.Font.TTF\DefaultIcon"; ValueType: string; ValueName: ""; ValueData: """{app}\FontPocket.exe"",0"; Check: NotQABuild
+Root: HKCU; Subkey: "Software\Classes\FontPocket.Font.TTF\shell\open\command"; ValueType: string; ValueName: ""; ValueData: """{app}\FontPocket.exe"" --open ""%1"""; Check: NotQABuild
+Root: HKCU; Subkey: "Software\Classes\.ttf\OpenWithProgids"; ValueType: none; ValueName: "FontPocket.Font"; Flags: deletevalue; Check: NotQABuild
+Root: HKCU; Subkey: "Software\Classes\FontPocket.Font.OTF"; ValueType: string; ValueName: ""; ValueData: "{cm:FontTypeOTF}"; Flags: uninsdeletekey; Check: NotQABuild
+Root: HKCU; Subkey: "Software\Classes\FontPocket.Font.OTF\DefaultIcon"; ValueType: string; ValueName: ""; ValueData: """{app}\FontPocket.exe"",0"; Check: NotQABuild
+Root: HKCU; Subkey: "Software\Classes\FontPocket.Font.OTF\shell\open\command"; ValueType: string; ValueName: ""; ValueData: """{app}\FontPocket.exe"" --open ""%1"""; Check: NotQABuild
+Root: HKCU; Subkey: "Software\Classes\.otf\OpenWithProgids"; ValueType: none; ValueName: "FontPocket.Font"; Flags: deletevalue; Check: NotQABuild
+Root: HKCU; Subkey: "Software\Classes\FontPocket.Font.TTC"; ValueType: string; ValueName: ""; ValueData: "{cm:FontTypeTTC}"; Flags: uninsdeletekey; Check: NotQABuild
+Root: HKCU; Subkey: "Software\Classes\FontPocket.Font.TTC\DefaultIcon"; ValueType: string; ValueName: ""; ValueData: """{app}\FontPocket.exe"",0"; Check: NotQABuild
+Root: HKCU; Subkey: "Software\Classes\FontPocket.Font.TTC\shell\open\command"; ValueType: string; ValueName: ""; ValueData: """{app}\FontPocket.exe"" --open ""%1"""; Check: NotQABuild
+Root: HKCU; Subkey: "Software\Classes\.ttc\OpenWithProgids"; ValueType: none; ValueName: "FontPocket.Font"; Flags: deletevalue; Check: NotQABuild
+Root: HKCU; Subkey: "Software\Classes\FontPocket.Font.OTC"; ValueType: string; ValueName: ""; ValueData: "{cm:FontTypeOTC}"; Flags: uninsdeletekey; Check: NotQABuild
+Root: HKCU; Subkey: "Software\Classes\FontPocket.Font.OTC\DefaultIcon"; ValueType: string; ValueName: ""; ValueData: """{app}\FontPocket.exe"",0"; Check: NotQABuild
+Root: HKCU; Subkey: "Software\Classes\FontPocket.Font.OTC\shell\open\command"; ValueType: string; ValueName: ""; ValueData: """{app}\FontPocket.exe"" --open ""%1"""; Check: NotQABuild
+Root: HKCU; Subkey: "Software\Classes\.otc\OpenWithProgids"; ValueType: none; ValueName: "FontPocket.Font"; Flags: deletevalue; Check: NotQABuild
+Root: HKCU; Subkey: "Software\Classes\FontPocket.Font.SFNT"; ValueType: string; ValueName: ""; ValueData: "{cm:FontTypeSFNT}"; Flags: uninsdeletekey; Check: NotQABuild
+Root: HKCU; Subkey: "Software\Classes\FontPocket.Font.SFNT\DefaultIcon"; ValueType: string; ValueName: ""; ValueData: """{app}\FontPocket.exe"",0"; Check: NotQABuild
+Root: HKCU; Subkey: "Software\Classes\FontPocket.Font.SFNT\shell\open\command"; ValueType: string; ValueName: ""; ValueData: """{app}\FontPocket.exe"" --open ""%1"""; Check: NotQABuild
+Root: HKCU; Subkey: "Software\Classes\.sfnt\OpenWithProgids"; ValueType: none; ValueName: "FontPocket.Font"; Flags: deletevalue; Check: NotQABuild
+Root: HKCU; Subkey: "Software\Classes\FontPocket.Font.WOFF"; ValueType: string; ValueName: ""; ValueData: "{cm:FontTypeWOFF}"; Flags: uninsdeletekey; Check: NotQABuild
+Root: HKCU; Subkey: "Software\Classes\FontPocket.Font.WOFF\DefaultIcon"; ValueType: string; ValueName: ""; ValueData: """{app}\FontPocket.exe"",0"; Check: NotQABuild
+Root: HKCU; Subkey: "Software\Classes\FontPocket.Font.WOFF\shell\open\command"; ValueType: string; ValueName: ""; ValueData: """{app}\FontPocket.exe"" --open ""%1"""; Check: NotQABuild
+Root: HKCU; Subkey: "Software\Classes\.woff\OpenWithProgids"; ValueType: none; ValueName: "FontPocket.Font"; Flags: deletevalue; Check: NotQABuild
+Root: HKCU; Subkey: "Software\Classes\FontPocket.Font.WOFF2"; ValueType: string; ValueName: ""; ValueData: "{cm:FontTypeWOFF2}"; Flags: uninsdeletekey; Check: NotQABuild
+Root: HKCU; Subkey: "Software\Classes\FontPocket.Font.WOFF2\DefaultIcon"; ValueType: string; ValueName: ""; ValueData: """{app}\FontPocket.exe"",0"; Check: NotQABuild
+Root: HKCU; Subkey: "Software\Classes\FontPocket.Font.WOFF2\shell\open\command"; ValueType: string; ValueName: ""; ValueData: """{app}\FontPocket.exe"" --open ""%1"""; Check: NotQABuild
+Root: HKCU; Subkey: "Software\Classes\.woff2\OpenWithProgids"; ValueType: none; ValueName: "FontPocket.Font"; Flags: deletevalue; Check: NotQABuild
+
 [Files]
 Source: "{#AppSource}\FontPocket.exe"; DestDir: "{app}"; Flags: ignoreversion
+Source: "{#AppSource}\Microsoft.Web.WebView2.*.dll"; DestDir: "{app}"; Flags: ignoreversion
+Source: "{#AppSource}\runtimes\*"; DestDir: "{app}\runtimes"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "{#AppSource}\WebAssets\*"; DestDir: "{app}\WebAssets"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "{#AppSource}\Licenses\*"; DestDir: "{app}\Licenses"; Flags: ignoreversion
 Source: "{#AppSource}\사용방법.txt"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#AppSource}\FontPocket.ico"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#AppSource}\Brand\Fonts\Pretendard-LICENSE.txt"; DestDir: "{app}\Licenses"; Flags: ignoreversion

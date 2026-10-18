@@ -2,7 +2,7 @@
 
 Download and install fonts together, then manage them in one place.
 
-Font Pocket is a Windows font manager. Import fonts from Noonnu, official font websites, direct download links, ZIP archives or folders, then preview and manage them in one place.
+Font Pocket is a Windows font manager. Import fonts from Noonnu, Google Fonts, Font Library, official font websites, direct download links, ZIP archives or folders, then preview and manage them in one place.
 
 ## Why I built Font Pocket
 
@@ -26,8 +26,10 @@ Run the **FontPocket-Setup-<version>.exe** installer from the latest release ass
 ## Features
 
 - Download fonts from website links and import ZIP archives or folders
-- Choose TTF, OTF and TTC files before installation
+- Import TTF, OTF, TTC, OTC, SFNT, WOFF and WOFF2 files; webfonts are converted before Windows installation
 - Preview fonts before installing, compare fonts and browse a font catalog
+- Adjust variable-font axes in the app and filter by weight, language, type or format
+- Open font files directly in one preview window without launching the main window
 - Enable or disable fonts and review duplicates
 - Inspect characters, language coverage, metadata and font versions
 - Back up selected fonts and restore them later
@@ -57,7 +59,7 @@ The SignPath application has been submitted; review is pending. This release is 
 
 여러 폰트를 한 번에 내려받고 설치하고, 한곳에서 관리합니다.
 
-Font Pocket은 Windows용 폰트 관리 프로그램입니다. 눈누·공식 사이트의 링크, 다운로드 주소, ZIP 파일이나 폴더에서 폰트를 가져오고 한곳에서 관리할 수 있습니다.
+Font Pocket은 Windows용 폰트 관리 프로그램입니다. 눈누·Google Fonts·Font Library·공식 사이트의 링크, 다운로드 주소, ZIP 파일이나 폴더에서 폰트를 가져오고 한곳에서 관리할 수 있습니다.
 
 ### 만들게 된 계기
 
@@ -81,8 +83,10 @@ Font Pocket은 Windows용 폰트 관리 프로그램입니다. 눈누·공식 �
 ### 주요 기능
 
 - 웹사이트 링크·ZIP·폴더에서 폰트 가져오기
-- TTF·OTF·TTC 선택 및 설치
+- TTF·OTF·TTC·OTC·SFNT·WOFF·WOFF2 가져오기 및 설치 (웹폰트는 설치용 형식으로 변환)
 - 설치 전 미리보기, 여러 폰트 비교, 전체 폰트 견본
+- 앱 안에서 가변 축 조절, 굵기·언어·종류·형식 필터
+- 폰트 파일을 열면 메인 화면 대신 하나의 미리보기 창에서 확인
 - 폰트 활성화·비활성화, 중복 확인·정리
 - 문자표, 지원 문자 범위, 제작자 정보와 폰트 버전 확인
 - 선택 백업·복원

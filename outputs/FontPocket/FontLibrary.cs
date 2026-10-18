@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -18,6 +18,7 @@ namespace FontPocket {
         public bool Disabled;
         public DisabledFont DisabledRecord;
         public long Bytes;
+        public DateTime AddedUtc;
         public List<FontRegistration> UserEntries = new List<FontRegistration>();
         public override string ToString() { return Name + (Disabled ? " · 비활성" : "") + (String.IsNullOrWhiteSpace(Version)?"":" · "+Version); }
         public bool CanRemove { get { return (Disabled || UserEntries.Count > 0) && !Machine && !FontLibrary.InDirectory(Path, Environment.GetFolderPath(Environment.SpecialFolder.Fonts)); } }
@@ -61,7 +62,7 @@ namespace FontPocket {
         }
         public static void ReadMetadata(ManagedFont font) {
             try { font.Metadata = FontMetadata.Read(font.Path); font.Name = font.Metadata.Display; font.Version = String.Join(", ", font.Metadata.Faces.Select(x => x.Version).Where(x => !String.IsNullOrWhiteSpace(x)).Distinct().ToArray()); if (font.Metadata.Variable) font.Format += " · 가변"; } catch { }
-            try { font.Bytes = new FileInfo(font.Path).Length; } catch { }
+            try {var file=new FileInfo(font.Path);font.Bytes = file.Length; font.AddedUtc=file.CreationTimeUtc; } catch { }
         }
         public static void FindDuplicates(List<ManagedFont> fonts, Func<string, string> hash, Func<bool> cancelled, Action<int, int> progress) {
             for (int i = 0; i < fonts.Count; i++) {

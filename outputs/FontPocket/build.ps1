@@ -1,4 +1,4 @@
-param([string]$OutputFile = (Join-Path $PSScriptRoot 'FontPocket.exe'))
+﻿param([string]$OutputFile = (Join-Path $PSScriptRoot 'FontPocket.exe'))
 $ErrorActionPreference = 'Stop'
 $manifest=[xml](Get-Content -LiteralPath (Join-Path $PSScriptRoot 'app.manifest') -Raw)
 $assemblyVersion=$manifest.assembly.assemblyIdentity.version
@@ -21,6 +21,25 @@ foreach ($assembly in @('System.Runtime.WindowsRuntime','System.Runtime.WindowsR
 foreach ($metadata in @('Windows.Foundation','Windows.Graphics','Windows.UI','Windows.UI.Xaml','Windows.Storage')) {
     $nativeRefs += "/reference:$winMetadata\$metadata.winmd"
 }
+$webView=Join-Path $PSScriptRoot 'Dependencies\WebView2'
+foreach($library in @('Microsoft.Web.WebView2.Core.dll','Microsoft.Web.WebView2.WinForms.dll')) {
+    $reference=Join-Path $webView ('lib\net462\'+$library)
+    if(-not(Test-Path -LiteralPath $reference)){throw 'Missing bundled WebView2 SDK dependency.'}
+    $nativeRefs+='/reference:'+$reference
+}
 & $compiler /nologo /target:winexe /platform:anycpu /optimize+ "/out:$OutputFile" "/win32manifest:$PSScriptRoot\app.manifest" "/win32icon:$PSScriptRoot\FontPocket.ico" "/resource:$PSScriptRoot\FontPocket.ico,FontPocket.Icon" "/resource:$PSScriptRoot\FontPocket-logo.png,FontPocket.Logo" "/resource:$PSScriptRoot\English.json,FontPocket.English" "/resource:$PSScriptRoot\Brand\Fonts\Pretendard-SemiBold.ttf,FontPocket.PretendardSemiBold" /reference:System.Windows.Forms.dll /reference:System.Drawing.dll /reference:System.Web.Extensions.dll "/reference:$compression" "/reference:$zip" @nativeRefs "$PSScriptRoot\*.cs"
 if ($LASTEXITCODE -ne 0) { throw 'Build failed.' }
+$outputDirectory=[IO.Path]::GetDirectoryName([IO.Path]::GetFullPath($OutputFile))
+foreach($library in @('Microsoft.Web.WebView2.Core.dll','Microsoft.Web.WebView2.WinForms.dll')){Copy-Item -LiteralPath (Join-Path $webView ('lib\net462\'+$library)) -Destination (Join-Path $outputDirectory $library) -Force}
+Copy-Item -LiteralPath (Join-Path $webView 'runtimes') -Destination $outputDirectory -Recurse -Force
+$assets=Join-Path $outputDirectory 'WebAssets'
+New-Item -ItemType Directory -Path $assets -Force | Out-Null
+Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'Dependencies\Woff2\woff2-encoder.js') -Destination $assets -Force
+$licenses=Join-Path $outputDirectory 'Licenses'
+New-Item -ItemType Directory -Path $licenses -Force | Out-Null
+Copy-Item -LiteralPath (Join-Path $webView 'LICENSE.txt') -Destination (Join-Path $licenses 'WebView2.txt') -Force
+Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'Dependencies\Woff2\LICENSE.txt') -Destination (Join-Path $licenses 'woff2-encoder.txt') -Force
+foreach($notice in @('Google-WOFF2.txt','Brotli.txt')){Copy-Item -LiteralPath (Join-Path $PSScriptRoot ('Dependencies\Woff2\'+$notice)) -Destination (Join-Path $licenses $notice) -Force}
 Write-Output 'FontPocket.exe built successfully.'
+
+

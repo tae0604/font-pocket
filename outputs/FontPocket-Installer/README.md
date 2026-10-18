@@ -1,3 +1,47 @@
-# Font Pocket installer
+# Font Pocket Windows 설치 패키지
 
-Inno Setup script and native language selector. See /BUILDING.md.
+사용자는 상위 폴더의 `FontPocket-Setup-0.1.3.exe`를 실행하면 됩니다.
+
+- 한국어 설치 마법사, 현재 계정에 설치하며 관리자 권한 불필요
+- 별도 정보·소개 화면 없이 설치 위치 선택부터 시작
+- 기본 위치 `%LOCALAPPDATA%\Programs\Font Pocket`
+- 시작 메뉴 등록, 바탕화면 바로가기 선택
+- Windows 설정의 설치된 앱 목록에서 제거
+- 같은 AppId와 설치 위치로 다음 버전 덮어쓰기 업데이트
+- 프로그램 제거 시 폰트와 `%LOCALAPPDATA%\FontPocket`의 개인 데이터 유지
+- .NET Framework 4.8 이상 확인, 없으면 안내 후 설치 중단
+
+실행 중인 파일을 업데이트할 때는 설치 마법사의 안내에 따라 앱을 종료합니다.
+설치 파일에는 실행 파일과 사용방법, 바로가기용 아이콘, 동봉한 Pretendard의 라이선스를 포함하며 개발 소스나 테스트 도구는 설치하지 않습니다.
+코드 서명 인증서는 적용하지 않았습니다.
+3.1.3부터 Windows 기본 인쇄 미리보기 연결을 제공하며 Windows 10 버전 1903 이상을 지원합니다.
+3.1.4에서는 사용자 제공 SVG를 앱·창·바로가기·설치 화면의 공통 로고로 적용했습니다.
+3.1.5에서는 수정 SVG, 더 큰 Pretendard Bold 제목, 설치 헤더 로고의 여백을 적용했습니다. 설치 EXE의 9개 아이콘 프레임을 원본 ICO와 비교해 일치함을 확인했습니다. 이전 탐색기 아이콘 캐시와 겹치지 않도록 설치 파일 이름에 버전을 붙입니다.
+
+## 빌드
+
+공식 [Inno Setup 6](https://jrsoftware.org/isdl.php)의 ISCC.exe를 준비합니다.
+6.7.3에서 빌드를 확인했습니다. 빌드 도구 배포본의 서명은 Pyrsys B.V. / Valid를 확인했습니다.
+
+```powershell
+.\build-installer.ps1 -CompilerPath 'C:\path\to\ISCC.exe'
+```
+
+앱 소스가 바뀌면 먼저 `..\FontPocket\build.ps1`로 실행 파일을 다시 빌드합니다.
+앱 빌드는 Windows의 WinMetadata와 .NET Framework 참조 파일을 사용합니다. 사용자 설치 파일에는 별도 Windows SDK나 런타임 DLL을 넣지 않습니다.
+버전을 올릴 때 `FontPocket.iss`의 AppVersion, AppVerName을 변경하되 배포용 AppId는 유지합니다.
+
+## 검증 결과
+
+설치 스크립트 컴파일 성공. 같은 스크립트의 QABuild로 별도 시험 폴더에서 다음을 확인했습니다.
+
+- 한글·공백 경로 설치, 원본 EXE와 설치본 SHA256 일치
+- 같은 위치 재설치로 이전 실행 파일 교체, 사용자 생성 파일 보존
+- 설치본 실행 및 자체 검사 34그룹 통과
+- 제거 후 실행 파일·동봉 안내서 삭제, 사용자 생성 파일 보존
+- 실제 사용자 폰트·개인 데이터 파일 목록, 크기와 수정 시각 변화 없음
+
+QABuild는 실제 사용자 프로필에 테스트 등록을 남기지 않도록 AppId를 분리하고 앱 등록·바로가기 생성을 생략합니다.
+배포용의 시작 메뉴·바탕화면·설치된 앱 등록은 스크립트 구성을 검토했으며, 실제 프로필에 설치해 시험하지는 않았습니다.
+실제 레지스트리의 전체 비교는 읽기 권한 제한으로 생략했습니다.
+사용자 폰트 설치·삭제는 시험 과정에서 수행하지 않았습니다.

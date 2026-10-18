@@ -17,7 +17,7 @@ From the repository root:
 powershell -NoProfile -ExecutionPolicy Bypass -File .\outputs\FontPocket\build.ps1
 ```
 
-The output is `outputs/FontPocket/FontPocket.exe`. The build reads its version
+The output is `outputs/FontPocket/FontPocket.exe`. Keep the generated WebView2 DLLs, `runtimes/`, `WebAssets/` and `Licenses/` alongside the executable. The required SDK and WOFF2 codec are bundled under `Dependencies/`; preview and WOFF2 import require Microsoft Edge WebView2 Evergreen Runtime. The build reads its version
 from `app.manifest` and generates `VersionInfo.cs`.
 
 ## Offline self-tests
@@ -44,7 +44,7 @@ Temporary wrapper build files go under `work/` and are not committed.
 
 ## Code signing
 
-The public v0.1.0 installer is unsigned. See [Code signing policy](CODE_SIGNING.md).
+Public installers are currently unsigned. See [Code signing policy](CODE_SIGNING.md).
 GitHub Actions builds unsigned app and installer artifacts from the reviewed source. SignPath approval and signing integration are pending; there is no active signing job yet.
 The intended order is: build app, sign app, build/sign the inner Inno payload,
 build/sign the outer language selector, verify all signatures, then generate
@@ -58,5 +58,5 @@ each production signing request requires manual maintainer approval.
 
 Windows에서 위 명령으로 앱과 설치 파일을 빌드합니다. 앱에는 .NET Framework 4.8,
 설치 파일 생성에는 Inno Setup 6이 필요합니다. `--self-test`에는 매번 새로운
-결과 폴더를 지정하세요. 현재 공개된 0.1.0은 서명되지 않았으며 SignPath 승인과
+결과 폴더를 지정하세요. 현재 공개 버전은 서명되지 않았으며 SignPath 승인과
 자동 빌드·서명 연동을 준비 중입니다.

@@ -42,32 +42,37 @@ namespace FontPocket {
         Button managerCancel;
         static string RecoveryDir { get { return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "FontPocket", "Removed"); } }
         Control CreateManagerPage() {
-            var page = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 6, Margin = Padding.Empty };
-            page.RowStyles.Add(new RowStyle(SizeType.Absolute, 40)); page.RowStyles.Add(new RowStyle(SizeType.Absolute, 36)); page.RowStyles.Add(new RowStyle(SizeType.Absolute, 46)); page.RowStyles.Add(new RowStyle(SizeType.Absolute, 48)); page.RowStyles.Add(new RowStyle(SizeType.Percent, 100)); page.RowStyles.Add(new RowStyle(SizeType.Absolute, 220));
+            var page = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 7, Margin = Padding.Empty };managerPage=page;
+            page.RowStyles.Add(new RowStyle(SizeType.Absolute, 48)); page.RowStyles.Add(new RowStyle(SizeType.Absolute, 40)); page.RowStyles.Add(new RowStyle(SizeType.Absolute, 40)); page.RowStyles.Add(new RowStyle(SizeType.Absolute, 46)); page.RowStyles.Add(new RowStyle(SizeType.Absolute, 48)); page.RowStyles.Add(new RowStyle(SizeType.Percent, 100)); page.RowStyles.Add(new RowStyle(SizeType.Absolute, 220));
             var search = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 3, RowCount = 1, Margin = Padding.Empty };
             search.RowStyles.Add(new RowStyle(SizeType.Percent,100));
             search.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, UiLanguage.Code=="en"?60:40)); search.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100)); search.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 108));
-            search.Controls.Add(new Label { Text = "검색", AutoSize = true, Margin = new Padding(0, 4, 0, 0) });
-            managerSearch.TextChanged += delegate { RefreshManagerList(); }; controls.Add(managerSearch); managerSearch.Dock=DockStyle.Fill; managerSearch.Margin=new Padding(0,1,10,4); search.Controls.Add(managerSearch);
+            search.Controls.Add(new Label { Text = "검색", AutoSize = true, Margin = new Padding(0, 9, 0, 0) });
+            managerSearch.TextChanged += delegate { RefreshManagerList(); }; controls.Add(managerSearch); managerSearch.Dock=DockStyle.Fill; managerSearch.Margin=new Padding(0,1,10,4); search.Controls.Add(ModernInput.Frame(managerSearch));
             PocketTheme.Cue(managerSearch,"이름, 형식, 메모 또는 태그");
-            var reload = MakeButton("새로고침", 100, async delegate { await LoadManagedFonts(); }, false); reload.Height = 28; search.Controls.Add(reload); page.Controls.Add(search);
+            var reload = MakeButton("새로고침", 100, async delegate { await LoadManagedFonts(); }, false); reload.Height = 36; search.Controls.Add(reload); page.Controls.Add(search);
             var filters = new FlowLayoutPanel { Dock = DockStyle.Fill, WrapContents = false, Margin = Padding.Empty };
             collectionFilter.DropDownStyle=ComboBoxStyle.DropDownList; collectionFilter.Width=155; collectionFilter.Margin=new Padding(0,0,18,0); collectionFilter.SelectedIndexChanged+=delegate { RefreshManagerList(); }; filters.Controls.Add(collectionFilter); controls.Add(collectionFilter);
             showSystemFonts.Text = "시스템 폰트 표시"; showSystemFonts.AutoSize = true; showSystemFonts.CheckedChanged += delegate { RefreshManagerList(); };
             showDisabledFonts.Text = "비활성 표시"; showDisabledFonts.Checked = true; showDisabledFonts.AutoSize = true; showDisabledFonts.CheckedChanged += delegate { RefreshManagerList(); };
             onlyDisabledFonts.Text = "비활성만"; onlyDisabledFonts.AutoSize = true; onlyDisabledFonts.CheckedChanged += delegate { if (onlyDisabledFonts.Checked) onlyDuplicates.Checked = false; showDisabledFonts.Enabled = !busy && !onlyDisabledFonts.Checked; RefreshManagerList(); };
             onlyDuplicates.Text = "중복만"; onlyDuplicates.AutoSize = true; onlyDuplicates.CheckedChanged += delegate { if (onlyDuplicates.Checked) onlyDisabledFonts.Checked = false; RefreshManagerList(); };
-            foreach (var filter in new CheckBox[] { showSystemFonts, showDisabledFonts, onlyDisabledFonts, onlyDuplicates }) { filter.Margin = new Padding(0, 3, 16, 0); filters.Controls.Add(filter); controls.Add(filter); }
-            page.Controls.Add(filters);
+            foreach (var filter in new CheckBox[] { showSystemFonts, showDisabledFonts, onlyDisabledFonts, onlyDuplicates }) { filter.Margin = new Padding(0, 7, 16, 0); filters.Controls.Add(filter); controls.Add(filter); }
+            managerBasicFilters=filters;managerAdvancedFilters=CreateAdvancedManagerFilters();page.Controls.Add(filters);page.Controls.Add(managerAdvancedFilters);
             var tools = new FlowLayoutPanel { Dock = DockStyle.Fill, WrapContents = false, Margin = Padding.Empty };
-            tools.Controls.Add(MakeButton("상세 정보", 90, delegate { OpenDetails(HighlightedFont()); }, false));
-            tools.Controls.Add(MakeButton("견본 보기", 90, delegate { OpenCatalog(); }, false));
-            tools.Controls.Add(MakeButton("중복 정리", 90, async delegate { await CleanupExactDuplicates(); }, false));
-            tools.Controls.Add(MakeButton("활성화", 75, async delegate { await ToggleManagedFonts(true); }, false));
-            tools.Controls.Add(MakeButton("비활성화", 85, async delegate { await ToggleManagedFonts(false); }, false));
-            tools.Controls.Add(MakeButton("비교", 65, delegate { CompareManagedFonts(); }, false));
-            tools.Controls.Add(MakeButton("버전 관리", 90, async delegate { await OpenVersionManager(HighlightedFont()); }, false));
+            tools.Controls.Add(MakeButton("폰트 가져오기",140,delegate {ShowPage(0);links.Focus();},true));
+            tools.Controls.Add(MakeButton("상세 정보",100,delegate {OpenDetails(HighlightedFont());},false));
+            tools.Controls.Add(MakeButton("비교",80,delegate {CompareManagedFonts();},false));
+            managerFilterToggle=MakeButton("필터 ▾",135,delegate {ToggleManagerFilters();},false);managerFilterToggle.Name="ToggleManagerFilters";tools.Controls.Add(managerFilterToggle);
             var moreMenu = new ContextMenuStrip { ShowImageMargin = false, Font = Font,RenderMode=ToolStripRenderMode.System };
+            moreMenu.Items.Add("견본 보기",null,delegate {OpenCatalog();});
+            moreMenu.Items.Add("중복 정리",null,async delegate {await CleanupExactDuplicates();});
+            moreMenu.Items.Add("활성화",null,async delegate {await ToggleManagedFonts(true);});
+            moreMenu.Items.Add("비활성화",null,async delegate {await ToggleManagedFonts(false);});
+            moreMenu.Items.Add("버전 관리",null,async delegate {await OpenVersionManager(HighlightedFont());});
+            moreMenu.Items.Add(new ToolStripSeparator());
+            var detailsItem=new ToolStripMenuItem("자세한 목록 보기") {CheckOnClick=true,Name="ManagerDetailedList"};detailsItem.CheckedChanged+=delegate {managerDetailed=detailsItem.Checked;RefreshManagerList();};moreMenu.Items.Add(detailsItem);
+            moreMenu.Items.Add(new ToolStripSeparator());
             AddFavoriteAction(moreMenu);
             moreMenu.Items.Add("메모·태그", null, delegate { EditFontNotes(HighlightedFont()); });
             moreMenu.Items.Add("모음 관리", null, delegate { ManageCollections(); });
@@ -89,13 +94,16 @@ namespace FontPocket {
             moreMenu.Items.Add("환경 백업",null,async delegate { await SaveEnvironment(); });
             moreMenu.Items.Add("환경 복원",null,async delegate { await RestoreEnvironment(); });
             moreMenu.Items.Add("Windows 글꼴 설정",null,delegate { OpenWindowsFontSettings(); });
-            var more = MakeButton("더 보기 ▾", 90, delegate { }, false);
+            SimplifyManagerMenu(moreMenu);
+            var more = MakeButton("관리 ▾", 90, delegate { }, false);
+            more.Name="ManagerMore";more.ContextMenuStrip=moreMenu;
             more.Click += delegate { moreMenu.Show(more, new Point(0, more.Height)); }; tools.Controls.Add(more);
             FormClosed += delegate { moreMenu.Dispose(); };
-            managerCancel = MakeButton("중단", 70, delegate { cancelled = true; managerCancel.Enabled = false; }, false); managerCancel.Enabled = false; controls.Remove(managerCancel); tools.Controls.Add(managerCancel); page.Controls.Add(tools);
+            managerCancel = MakeButton("중단", 70, delegate { cancelled = true; managerCancel.Enabled = false; }, false); managerCancel.Enabled = false; managerCancel.Visible=false;controls.Remove(managerCancel); tools.Controls.Add(managerCancel); page.Controls.Add(tools);
             managerCount.Dock = DockStyle.Fill; managerCount.ForeColor = Color.FromArgb(105, 112, 124); page.Controls.Add(managerCount);
             managerList.Dock = DockStyle.Fill; managerList.View = View.Details; managerList.FullRowSelect = true; managerList.CheckBoxes = false; managerList.MultiSelect = true; managerList.HideSelection = false; managerList.ShowItemToolTips = true; managerList.BorderStyle = BorderStyle.None;
-            managerList.Columns.Add("글꼴 · 스타일", 255); managerList.Columns.Add("형식", 88); managerList.Columns.Add("버전", 90); managerList.Columns.Add("범위", 95); managerList.Columns.Add("상태", 75); managerList.Columns.Add("중복 확인", 170); managerList.Columns.Add("크기", 82);
+            managerList.Columns.Add("글꼴 · 스타일", 235); managerList.Columns.Add("형식", 60); managerList.Columns.Add("버전", 70); managerList.Columns.Add("범위", 80); managerList.Columns.Add("상태", 65); managerList.Columns.Add("중복 확인", 115); managerList.Columns.Add("크기", 85); managerList.Columns.Add("추가 날짜",100);
+            managerList.Resize+=delegate {ApplyManagerColumns();};
             managerList.HandleCreated += delegate { SetWindowTheme(managerList.Handle, "Explorer", null); SendMessage(managerList.Handle, 0x1036, new IntPtr(0x10000), new IntPtr(0x10000)); };
             managerList.SelectedIndexChanged += delegate { SyncManagerSelection(); };
             managerList.KeyDown+=delegate(object sender,KeyEventArgs e) {
@@ -114,20 +122,22 @@ namespace FontPocket {
             var listPanel = new Surface { Dock = DockStyle.Fill, Padding = new Padding(1, 6, 1, 6), Margin = Padding.Empty }; listPanel.Controls.Add(managerList); page.Controls.Add(listPanel);
             var preview = new Surface { Dock = DockStyle.Fill, Padding = new Padding(10), Margin = new Padding(0, 10, 0, 0) };
             var previewLayout = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 4 };
-            previewLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 21)); previewLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 46)); previewLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 100)); previewLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 20));
+            previewLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 21)); previewLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 52)); previewLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 100)); previewLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 20));
             previewName.Tag="OriginalMetadata"; previewName.Text = UiLanguage.Text("폰트를 선택하면 미리보기가 표시됩니다."); previewName.AutoEllipsis = true; previewName.Dock = DockStyle.Fill; previewLayout.Controls.Add(previewName);
             var input = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, Margin = Padding.Empty }; input.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100)); input.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 75));
-            previewText.Multiline = true; previewText.Text = FontSamples.Default; previewText.Dock = DockStyle.Fill; previewText.TextChanged += delegate { LayoutManagedPreview(); }; input.Controls.Add(previewText); controls.Add(previewText);
-            previewSize.Minimum = 12; previewSize.Maximum = 72; previewSize.Value = 28; previewSize.Dock = DockStyle.Fill; previewSize.ValueChanged += delegate { if (previewTarget != null) ShowFontPreview(previewTarget); }; input.Controls.Add(previewSize); controls.Add(previewSize); previewLayout.Controls.Add(input);
+            previewText.Multiline = true; previewText.Text = FontSamples.Default; previewText.Dock = DockStyle.Fill; previewText.TextChanged += delegate { LayoutManagedPreview(); }; input.Controls.Add(ModernInput.Frame(previewText)); controls.Add(previewText);
+            previewSize.Minimum = 12; previewSize.Maximum = 72; previewSize.Value = 28; previewSize.Dock = DockStyle.Fill; previewSize.ValueChanged += delegate { if (previewTarget != null) ShowFontPreview(previewTarget); }; input.Controls.Add(ModernInput.Frame(previewSize)); controls.Add(previewSize); previewLayout.Controls.Add(input);
             previewCanvas.Dock = DockStyle.Fill; previewCanvas.BackColor = Color.White;previewCanvas.AutoScroll=true;previewCanvas.Resize+=delegate {LayoutManagedPreview();};
             previewCanvas.Paint += delegate(object sender, PaintEventArgs e) { if (currentPreview != null) { e.Graphics.TextRenderingHint = TextRenderingHint.AntiAliasGridFit;int width=Math.Max(40,previewCanvas.ClientSize.Width-(previewCanvas.VerticalScroll.Visible?0:SystemInformation.VerticalScrollBarWidth)-8); using (var brush = new SolidBrush(PocketTheme.Ink)) e.Graphics.DrawString(previewText.Text, currentPreview.Font, brush,new RectangleF(0,previewCanvas.AutoScrollPosition.Y,width,Math.Max(previewCanvas.Height,previewCanvas.AutoScrollMinSize.Height))); } }; previewLayout.Controls.Add(previewCanvas);
             previewPath.Dock = DockStyle.Fill; previewPath.ForeColor = Color.FromArgb(110, 118, 130); previewPath.AutoEllipsis = true; previewPath.Font = new Font(Font.FontFamily, 8.25f); previewLayout.Controls.Add(previewPath); preview.Controls.Add(previewLayout); page.Controls.Add(preview);
             BindMenu(moreMenu,ManagerActionReason,t=>ActionDescription(3,t));
             BindMenu(menu,ManagerActionReason,t=>ActionDescription(3,t));
             FormClosed += delegate { ClearFontPreview(); menu.Dispose(); };
+            for(int row=0;row<page.Controls.Count;row++)page.SetCellPosition(page.Controls[row],new TableLayoutPanelCellPosition(0,row));
+            SetManagerFiltersVisible(false);ApplyManagerColumns();
             return page;
         }
-        IEnumerable<ManagedFont> VisibleManagedFonts() { return managedFonts.Where(x => (showSystemFonts.Checked || x.CanRemove) && (onlyDisabledFonts.Checked ? x.Disabled : (showDisabledFonts.Checked || !x.Disabled)) && (!onlyDuplicates.Checked || x.ExactDuplicate || x.NameConflict) && MatchesPersonalFilters(x)); }
+        IEnumerable<ManagedFont> VisibleManagedFonts() { return managedFonts.Where(x => (showSystemFonts.Checked || x.CanRemove) && (onlyDisabledFonts.Checked ? x.Disabled : (showDisabledFonts.Checked || !x.Disabled)) && (!onlyDuplicates.Checked || x.ExactDuplicate || x.NameConflict) && MatchesPersonalFilters(x) && MatchesAdvancedManagerFilters(x)); }
         void SyncManagerSelection() {
             if(updatingManagerChecks) return;
             var selected=new HashSet<ManagedFont>(ChosenManagedFonts());
@@ -149,17 +159,18 @@ namespace FontPocket {
                     var row = new ListViewItem((note!=null && note.Favorite?"★ ":"")+font.Name) { Tag = font, ToolTipText = font.Path + "\r\n" + font.Version+(note==null?"":"\r\n"+note.Tags+"\r\n"+note.Memo), ForeColor = font.CanRemove && !font.Disabled ? ForeColor : Color.DimGray };
                     if(familyGroups) { string family=font.Metadata==null?font.Name:font.Metadata.Faces[0].Family;ListViewGroup group;if(!groups.TryGetValue(family,out group)) { group=new ListViewGroup(family,HorizontalAlignment.Left);groups[family]=group;managerList.Groups.Add(group); } row.Group=group; }
                     var versionNumber = System.Text.RegularExpressions.Regex.Match(font.Version, @"\d+(?:\.\d+)+");
-                    row.SubItems.Add(font.Format); row.SubItems.Add(versionNumber.Success ? versionNumber.Value : font.Version); row.SubItems.Add(font.Scope); row.SubItems.Add(font.Disabled ? "비활성" : "활성"); row.SubItems.Add(font.DuplicateLabel); row.SubItems.Add((font.Bytes / 1024.0).ToString("N0") + " KB"); managerList.Items.Add(row);
+                    row.SubItems.Add(font.Format); row.SubItems.Add(versionNumber.Success ? versionNumber.Value : font.Version); row.SubItems.Add(font.Scope); row.SubItems.Add(UiLanguage.Text(managerDetailed?(font.Disabled?"비활성":"활성"):(font.Disabled?"사용 안 함":"사용 중"))); row.SubItems.Add(font.DuplicateLabel); row.SubItems.Add((font.Bytes / 1024.0).ToString("N0") + " KB");var added=AddedDate(font);row.SubItems.Add(added==DateTime.MinValue?"—":added.ToString("yyyy-MM-dd"));row.ToolTipText+="\r\n"+UiLanguage.Text("추가 날짜: 최초 확인 시 파일 생성일 기준으로 기록합니다."); managerList.Items.Add(row);
                     row.Selected=font.Checked;
                     if (font.Path == selected && row.Selected) row.Focused = true;
                 }
-            } finally { updatingManagerChecks = false; managerList.EndUpdate(); }
+            } finally { updatingManagerChecks = false; managerList.EndUpdate();ApplyManagerColumns();ThemeManager.FitColumns(managerList); }
             if(selected!=null && !managerList.Items.Cast<ListViewItem>().Any(r=>((ManagedFont)r.Tag).Path==selected)) ClearFontPreview();
             SyncManagerSelection();
         }
         void UpdateManagerCount() {
             managerCount.Text = "표시 " + managerList.Items.Count + "개 · 내 계정 활성 " + managedFonts.Count(x => x.CanRemove && !x.Disabled) + " / 비활성 " + managedFonts.Count(x => x.Disabled) + " · 선택 " + managerList.SelectedItems.Count + "개" + (duplicateScanDone ? " · 완전 동일 " + managedFonts.Count(x => x.ExactDuplicate) + "개 / 이름 겹침 " + managedFonts.Count(x => x.NameConflict && !x.ExactDuplicate) + "개" : "") + "\r\n클릭: 한 개 선택 · Ctrl+클릭: 개별 추가·해제 · Shift+클릭: 연속 범위 선택";
-            RefreshActionAvailability();
+            if(!managerDetailed)managerCount.Text=String.Format(UiLanguage.Text("폰트 {0}개 · 선택 {1}개"),managerList.Items.Count,managerList.SelectedItems.Count)+"\r\n"+UiLanguage.Text("폰트를 클릭하면 아래에서 미리 볼 수 있어요. 여러 개를 고르려면 Ctrl+클릭하세요.");
+            UpdateManagerFilterCaption();RefreshActionAvailability();
         }
         async void EnsureManagedFonts() { if (!managerLoaded && !busy) await LoadManagedFonts(); }
         internal async Task LoadManagedFonts() {
@@ -172,7 +183,7 @@ namespace FontPocket {
                     foreach (var font in fonts) { if (cancelled) break; FontLibrary.ReadMetadata(font); font.Checked = checkedPaths.Contains(font.Path); }
                     return FontOrdering.Order(fonts).ToList();
                 });
-                if (!cancelled) { managedFonts = loaded; managerLoaded = true; duplicateScanDone = false; RefreshManagerList(); status.Text = "폰트 목록 · " + loaded.Count + "개"; }
+                if (!cancelled) { managedFonts = loaded; managerLoaded = true; duplicateScanDone = false; managerFilterIndex.Clear();RememberFontDates();if(NeedsManagerIndex)await BuildManagerFilterIndex();RefreshManagerList(); status.Text = "폰트 목록 · " + loaded.Count + "개"; }
             } catch (Exception ex) { Log("폰트 목록 오류: " + ex.Message); status.Text = "목록을 읽지 못했습니다. 작업 기록을 확인하세요."; }
             finally { SetBusy(false); }
         }

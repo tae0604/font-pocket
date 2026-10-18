@@ -86,12 +86,12 @@ namespace FontPocket {
             UIntPtr result;
             SendMessageTimeout(new IntPtr(0xffff), 0x001d, UIntPtr.Zero, IntPtr.Zero, 2, 1000, out result);
         }
-        public static List<string> Extract(string zip, string temp) {
+        public static List<string> Extract(string zip, string temp, bool importing = false) {
             var paths = new List<string>(); long total = 0;
             Directory.CreateDirectory(temp);
             using (var archive = ZipFile.OpenRead(zip)) {
                 foreach (var entry in archive.Entries) {
-                    if (!ArchiveFont(entry)) continue;
+                    if (!(importing ? ImportArchiveFont(entry) : ArchiveFont(entry))) continue;
                     total += entry.Length;
                     if (entry.Length > 512L * 1024 * 1024 || total > 2L * 1024 * 1024 * 1024 || paths.Count >= 10000)
                         throw new InvalidDataException("ZIP 허용 범위를 넘었습니다 (폰트 1개 512MB / 전체 2GB / 10,000개).");
@@ -109,6 +109,9 @@ namespace FontPocket {
                 }
             }
             return paths;
+        }
+        public static bool ImportArchiveFont(ZipArchiveEntry entry) {
+            return FontImport.Supported(entry.Name) && !entry.FullName.Replace('\\', '/').StartsWith("__MACOSX/", StringComparison.OrdinalIgnoreCase) && !entry.Name.StartsWith("._");
         }
         public static bool ArchiveFont(ZipArchiveEntry entry) {
             return IsFont(entry.Name) && !entry.FullName.Replace('\\', '/').StartsWith("__MACOSX/", StringComparison.OrdinalIgnoreCase) && !entry.Name.StartsWith("._");
@@ -149,6 +152,7 @@ namespace FontPocket {
         bool busy; volatile bool cancelled;
         public MainWindow() { BuildWindow(); }
         Button MakeButton(string text, int width, EventHandler click, bool primary) {
+            if(UiLanguage.Code=="en"){if(text=="비교")width=85;else if(text=="상세 정보")width=80;else if(text=="버전 관리"||text=="더 보기 ▾")width=85;}
             var b = new PocketButton { Text = text, Size = new Size(width, 34), Primary = primary, Font = Font, Margin = new Padding(0, 0, 8, 0) };
             b.Click += click; b.Click += delegate { RefreshActionAvailability(); }; controls.Add(b); return b;
         }
@@ -159,12 +163,12 @@ namespace FontPocket {
             busy = value; foreach (var control in controls) control.Enabled = !value;
             showDisabledFonts.Enabled = !value && !onlyDisabledFonts.Checked;
             list.Enabled = !value;
-            cancel.Enabled = value; if (value) { cancelled = false; progress.Value = 0; }
-            if (managerCancel != null) managerCancel.Enabled = value;
+            cancel.Enabled = value;cancel.Visible=value; if (value) { cancelled = false; progress.Value = 0; }
+            if (managerCancel != null) {managerCancel.Enabled = value;managerCancel.Visible=value;}
             RefreshActionAvailability();
         }
         async void SelectFiles() {
-            using (var d = new OpenFileDialog { Title = "폰트 또는 백업 ZIP 선택", Filter = "폰트 / ZIP|*.ttf;*.otf;*.ttc;*.zip", Multiselect = true })
+            using (var d = new OpenFileDialog { Title = "폰트 또는 백업 ZIP 선택", Filter = "폰트 / ZIP|*.ttf;*.otf;*.ttc;*.otc;*.sfnt;*.woff;*.woff2;*.zip", Multiselect = true })
                 if (d.ShowDialog() == DialogResult.OK) await AddPaths(d.FileNames);
         }
         async void SelectFolder() {
@@ -176,7 +180,7 @@ namespace FontPocket {
             while (pending.Count > 0 && !cancelled) {
                 string current = pending.Pop();
                 try {
-                    result.AddRange(Directory.GetFiles(current).Where(x => Engine.IsFont(x) || Path.GetExtension(x).Equals(".zip", StringComparison.OrdinalIgnoreCase)));
+                    result.AddRange(Directory.GetFiles(current).Where(x => FontImport.Supported(x) || Path.GetExtension(x).Equals(".zip", StringComparison.OrdinalIgnoreCase)));
                     foreach (string child in Directory.GetDirectories(current)) if ((File.GetAttributes(child) & FileAttributes.ReparsePoint) == 0) pending.Push(child);
                 } catch (Exception ex) { UI(delegate { Log(current + ": " + ex.Message); }); }
             }
@@ -186,30 +190,30 @@ namespace FontPocket {
             if (busy) return; SetBusy(true); status.Text = "파일을 불러오는 중…";
             var before = new HashSet<FontItem>(items);
             try {
-                await Task.Run(delegate {
+                {
                     foreach (string path in paths) {
                         if (cancelled) break;
-                        var found = Directory.Exists(path) ? Walk(path) : new string[] { path };
+                        var found = Directory.Exists(path) ? await Task.Run(()=>Walk(path)) : new string[] { path };
                         foreach (string file in found) {
                             if (cancelled) break;
                             try {
                                 DownloadLink origin; downloadOrigins.TryGetValue(file, out origin);
                                 if (Path.GetExtension(file).Equals(".zip", StringComparison.OrdinalIgnoreCase)) {
                                     string target = Path.Combine(tempRoot, Guid.NewGuid().ToString("N"));
-                                    var extracted = Engine.Extract(file, target);
+                                    var extracted = await Task.Run(()=>Engine.Extract(file, target, true));
                                     using (var zip = ZipFile.OpenRead(file)) {
-                                        var names = zip.Entries.Where(Engine.ArchiveFont).Select(x => x.Name).ToList();
+                                        var names = zip.Entries.Where(Engine.ImportArchiveFont).Select(x => x.Name).ToList();
                                         for (int i = 0; i < extracted.Count && !cancelled; i++) {
-                                            try { AddOne(extracted[i], names[i], origin); }
+                                            try { await AddImportedFontAsync(extracted[i], names[i], origin); }
                                             catch (Exception ex) { string detail = names[i] + ": " + ex.Message; UI(delegate { Log(detail); }); }
                                         }
                                     }
                                     if (extracted.Count == 0) UI(delegate { Log(Path.GetFileName(file) + ": 폰트 파일이 없습니다."); });
-                                } else if (Engine.IsFont(file)) AddOne(file, Path.GetFileName(file), origin);
+                                } else if (FontImport.Supported(file)) await AddImportedFontAsync(file, Path.GetFileName(file), origin);
                             } catch (Exception ex) { UI(delegate { Log(Path.GetFileName(file) + ": " + ex.Message); }); }
                         }
                     }
-                });
+                }
                 ConfirmMissingFormat(items.Where(x => !before.Contains(x)).ToList());
                 ApplyRecommendations();
                 if (items.Count > before.Count) Log("대기열 추가 · " + (items.Count - before.Count) + "개 폰트");
@@ -217,21 +221,22 @@ namespace FontPocket {
             } catch (Exception ex) { Log(ex.Message); status.Text = "불러오기 실패 · 작업 기록을 확인하세요."; }
             finally { UpdateCount(); SetBusy(false); }
         }
-        void AddOne(string path, string name, DownloadLink origin) {
+        FontItem AddOne(string path, string name, DownloadLink origin) {
             string hash = Engine.Hash(path);
             FontMetadata metadata = null; string reason = null;
             try { metadata = FontMetadata.Read(path); }
             catch (Exception ex) { reason = ex.Message; }
+            FontItem added=null;
             UI(delegate {
-                if (items.Any(x => x.Hash == hash)) return;
+                added=items.FirstOrDefault(x=>x.Hash==hash);if(added!=null)return;
                 var item = new FontItem(path) { Name = name, Hash = hash, Metadata = metadata, Reason = reason,
                     FormatOverride = origin != null && origin.FormatOverride,
-                    ForceSelected = origin != null && (origin.FormatOverride || (origin.Variant == FontVariant.Variable && metadata != null && metadata.Variable)) }; items.Add(item);
+                    ForceSelected = origin != null && (origin.FormatOverride || (origin.Variant == FontVariant.Variable && metadata != null && metadata.Variable)) }; items.Add(item);added=item;
                 var row = new ListViewItem(name) { Tag = item };
                 row.SubItems.Add(metadata == null ? "정보 읽기 실패" : metadata.Display); row.ToolTipText = metadata == null ? reason : metadata.Display;
-                row.SubItems.Add(Path.GetExtension(name).TrimStart('.').ToUpperInvariant() + (metadata != null && metadata.Variable ? " · 가변" : ""));
+                row.SubItems.Add((!Path.GetExtension(name).Equals(Path.GetExtension(path),StringComparison.OrdinalIgnoreCase)?Path.GetExtension(name).TrimStart('.').ToUpperInvariant()+" → ":"")+Path.GetExtension(path).TrimStart('.').ToUpperInvariant() + (metadata != null && metadata.Variable ? " · 가변" : ""));
                 row.SubItems.Add((new FileInfo(path).Length / 1024.0).ToString("N0") + " KB"); row.SubItems.Add(reason ?? "선택 분석 대기"); list.Items.Add(row);
-            });
+            });return added;
         }
         void ApplyRecommendations() {
             Selection.Recommend(items, FormatMode, includeTtc.Checked);
@@ -310,6 +315,7 @@ namespace FontPocket {
                 try { SelfTest(args[1]); return 0; } catch (Exception ex) { File.WriteAllText(Path.Combine(args[1], "test-failure.txt"), ex.ToString()); return 1; }
             }
             Application.EnableVisualStyles(); Application.SetCompatibleTextRenderingDefault(false);
+            if(args.Length==0||FileAssociations.OpenArguments(args).Length>0) {new FontPocketApplication().Run(args);return 0;}
             using (var window = new MainWindow()) {
                 if (args.Length > 2 && args[0] == "--preview-compare") {
                     window.Shown += async delegate {
@@ -360,7 +366,12 @@ namespace FontPocket {
                         window.Close();
                     };
                     Application.Run(window);
-                } else { window.Shown += delegate { window.ShowPage(3); }; Application.Run(window); }
+                } else {
+                    string[] files=FileAssociations.OpenArguments(args);
+                    if(files.Length>0)window.Shown+=async delegate {try {await window.OpenFontFilesAsync(files);}catch(Exception ex){DialogUI.Error(window,ex);}};
+                    else window.Shown+=delegate {window.ShowPage(3);};
+                    Application.Run(window);
+                }
             }
             return 0;
         }

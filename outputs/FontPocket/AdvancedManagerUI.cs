@@ -10,19 +10,19 @@ using System.Windows.Forms;
 
 namespace FontPocket {
     public partial class MainWindow {
-        PersonalLibrary personal; ComboBox collectionFilter=new ComboBox(); bool familyGroups,hotkeyRegistered; Form quickSearch;
+        PersonalLibrary personal; ComboBox collectionFilter=new PocketComboBox(); bool familyGroups,hotkeyRegistered;IntPtr registeredHotkeyWindow; Form quickSearch;
         [DllImport("user32.dll",SetLastError=true)] static extern bool RegisterHotKey(IntPtr handle,int id,uint modifiers,uint key);
         [DllImport("user32.dll")] static extern bool UnregisterHotKey(IntPtr handle,int id);
         public class CollectionChoice { public string Id {get;set;} public string Name {get;set;} public override string ToString() { return Name; } }
         List<CollectionChoice> collectionChoices=new List<CollectionChoice>();
         CollectionChoice CurrentCollection {get {return collectionFilter.SelectedIndex>=0 && collectionFilter.SelectedIndex<collectionChoices.Count?collectionChoices[collectionFilter.SelectedIndex]:null;}}
         void InitializeAdvancedFeatures() {
-            collectionFilter.DrawMode=DrawMode.Normal;
+            if(!(collectionFilter is PocketComboBox))collectionFilter.DrawMode=DrawMode.Normal;
             try { personal=new PersonalLibrary(PersonalLibrary.DefaultPath); }
             catch(Exception ex) { Log("개인 정보 읽기 실패 · 원본 유지: "+ex.Message); personal=new PersonalLibrary(PersonalLibrary.DefaultPath+".recovered-"+DateTime.Now.ToString("yyyyMMddHHmmss")); }
             RefreshCollections();
-            HandleCreated+=delegate { if(Environment.GetCommandLineArgs().Any(x=>x.StartsWith("--")) || Environment.GetEnvironmentVariable("FONTPOCKET_TEST")=="1") return; hotkeyRegistered=RegisterHotKey(Handle,0x504f,0x4000|0x1|0x2,0x20); if(!hotkeyRegistered) Log("빠른 검색 단축키 Ctrl+Alt+Space를 등록하지 못했습니다. 앱에서 Ctrl+K를 사용하세요."); };
-            HandleDestroyed+=delegate { if(hotkeyRegistered) { UnregisterHotKey(Handle,0x504f); hotkeyRegistered=false; } };
+            HandleCreated+=delegate { if(IsDisposed||Disposing)return;if(Environment.GetCommandLineArgs().Any(x=>x.StartsWith("--")) || Environment.GetEnvironmentVariable("FONTPOCKET_TEST")=="1") return; registeredHotkeyWindow=Handle;hotkeyRegistered=RegisterHotKey(registeredHotkeyWindow,0x504f,0x4000|0x1|0x2,0x20); if(!hotkeyRegistered) Log("빠른 검색 단축키 Ctrl+Alt+Space를 등록하지 못했습니다. 앱에서 Ctrl+K를 사용하세요."); };
+            HandleDestroyed+=delegate { if(hotkeyRegistered) { UnregisterHotKey(registeredHotkeyWindow,0x504f); hotkeyRegistered=false;registeredHotkeyWindow=IntPtr.Zero; } };
             FormClosed+=delegate { if(quickSearch!=null && !quickSearch.IsDisposed) quickSearch.Close(); };
         }
         protected override void WndProc(ref Message m) { if(m.Msg==0x312 && m.WParam.ToInt32()==0x504f) { BeginInvoke((Action)delegate { OpenQuickSearch(); }); return; } base.WndProc(ref m); }
