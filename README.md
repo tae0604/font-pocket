@@ -31,6 +31,35 @@
 
 ## See it in action
 
+### Download several fonts from links
+
+Paste one font URL per line, choose **Add to queue**, then pick the files to download.
+
+![Paste multiple font links into Font Pocket](docs/images/font-download-links-en.png)
+
+<details>
+<summary>Downloaded fonts, ZIP archives and individual font files in one queue</summary>
+
+Choose the styles you need after downloading. This example uses Pretendard, SUIT and Poppins.
+
+![Downloaded SUIT and Poppins fonts alongside imported font files](docs/images/font-download-queue-en.png)
+
+Use **Add files / ZIP** to add a package such as `BM-fonts-package.zip` or a single file such as `양진체v0.93.otf` to the same queue. ZIP archives are extracted by the app; you can choose the font format before installing.
+
+![Font files from a ZIP package and an individual OTF in the queue](docs/images/font-download-files-en.png)
+
+Try these links:
+
+```text
+https://noonnu.cc/font_page/694
+https://noonnu.cc/font_page/845
+https://fonts.google.com/specimen/Poppins?preview.lang=en_Latn
+```
+
+</details>
+
+### Manage installed fonts
+
 **Find installed fonts and preview your selection right below the list.**
 
 ![Font Pocket font manager](docs/images/font-manager-en-poppins-bold.png)
