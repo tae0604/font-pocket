@@ -2,8 +2,8 @@
 
 ## Current status
 
-Font Pocket is preparing an application to the SignPath Foundation program.
-It has not been accepted, and the public v0.1.0 installer is unsigned.
+Font Pocket has submitted an application to the SignPath Foundation program.
+It has not been accepted, and the public installers are unsigned.
 Do not treat this policy as evidence that any current binary has been signed.
 
 If approved, the required credit will be:
@@ -33,7 +33,7 @@ See [Privacy policy](PRIVACY.md), including opt-out details for automatic update
 
 ## 한국어
 
-현재 SignPath 신청 준비 단계이며 아직 승인되거나 서명된 상태가 아닙니다.
-공개 버전 0.1.0은 서명되지 않았습니다. 승인 후 검증 가능한 자동 빌드에서
+현재 SignPath 신청을 제출하고 심사 결과를 기다리고 있으며 아직 승인되거나 서명된 상태가 아닙니다.
+현재 공개 설치 파일은 서명되지 않았습니다. 승인 후 검증 가능한 자동 빌드에서
 생성한 앱과 설치 파일만 서명 요청하고, 매 릴리스는 관리자가 직접 승인합니다.
 관리자 계정에는 다중 인증을 사용해야 합니다.

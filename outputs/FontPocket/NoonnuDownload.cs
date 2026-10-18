@@ -81,11 +81,10 @@ namespace FontPocket {
             }
         }
         static HttpWebResponse Open(string url, Func<bool> cancelled) {
-            ServicePointManager.SecurityProtocol |= SecurityProtocolType.Tls12;
             for (int i = 0; i < 10; i++) {
                 if (cancelled()) throw new OperationCanceledException();
                 Uri uri = new Uri(url); CheckUri(uri);
-                var request = (HttpWebRequest)WebRequest.Create(uri);
+                var request = SecureHttp.Create(uri.AbsoluteUri);
                 request.AllowAutoRedirect = false; request.Timeout = 20000; request.ReadWriteTimeout = 20000;
                 request.UserAgent = "FontPocket/3.1 (+Windows desktop font manager)";
                 request.Accept = "*/*"; request.AutomaticDecompression = DecompressionMethods.GZip | DecompressionMethods.Deflate;

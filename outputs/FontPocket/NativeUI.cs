@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.Runtime.InteropServices;
@@ -61,7 +61,7 @@ namespace FontPocket {
         [DllImport("user32.dll")] static extern IntPtr SendMessage(IntPtr hwnd, int msg, IntPtr wp, IntPtr lp);
         [DllImport("dwmapi.dll")] static extern int DwmSetWindowAttribute(IntPtr hwnd, int attribute, ref int value, int size);
         void BuildWindow() {
-            Text = "Font Pocket 0.1.0"; Size = new Size(1240, 900); MinimumSize = new Size(1120, 800);
+            Text = "Font Pocket " + UpdateClient.CurrentVersion.ToString(3); Size = new Size(1240, 900); MinimumSize = new Size(1120, 800);
             StartPosition = FormStartPosition.CenterScreen; BackColor = Color.FromArgb(249, 250, 251);
             Font = new Font("맑은 고딕", 9.5f); ForeColor = Color.FromArgb(32, 38, 48); AutoScaleMode = AutoScaleMode.Dpi;
             PocketTheme.Apply(this);
@@ -74,7 +74,7 @@ namespace FontPocket {
                 int index = order[i]; nav[index] = new PocketNavigationButton { Text = labels[index], Navigation = true, Location = new Point(10, 84 + i * 44), Size = new Size(196, 36), Font = Font };
                 nav[index].Click += delegate { ShowPage(index); }; sidebar.Controls.Add(nav[index]);
             }
-            var version = new Label { Text = "0.1.0 · Ctrl+K", ForeColor = Color.FromArgb(125, 134, 148), AutoSize = true, Anchor = AnchorStyles.Left | AnchorStyles.Bottom, Location = new Point(18, 715) };
+            var version = new Label { Text = UpdateClient.CurrentVersion.ToString(3), ForeColor = Color.FromArgb(125, 134, 148), AutoSize = true, Anchor = AnchorStyles.Left | AnchorStyles.Bottom, Location = new Point(18, 715) };
             sidebar.Controls.Add(version); sidebar.Resize += delegate { version.Top = sidebar.Height - version.Height - 26; };
             var main = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 3, Padding = new Padding(24, 22, 24, 14) };
             main.RowStyles.Add(new RowStyle(SizeType.Absolute, 48)); main.RowStyles.Add(new RowStyle(SizeType.Percent, 100)); main.RowStyles.Add(new RowStyle(SizeType.Absolute, 32)); shell.Controls.Add(main, 1, 0);
@@ -122,8 +122,8 @@ namespace FontPocket {
             var footer = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, Padding = new Padding(0, 9, 0, 0) }; footer.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100)); footer.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 180));
             status.Dock = DockStyle.Fill; status.ForeColor = Color.FromArgb(100, 110, 126); status.Text = "파일이나 링크를 추가해 주세요."; status.AutoEllipsis = true;
             progress.Dock = DockStyle.Fill; progress.Margin = new Padding(14, 3, 0, 4); footer.Controls.Add(status); footer.Controls.Add(progress); main.Controls.Add(footer);
-            InitializeActionAvailability();
             InitializeAppUpdates(sidebar);
+            InitializeActionAvailability();
             BindMenu(queueMenu,t=>ActionReason(0,t),t=>ActionDescription(0,t));
             ShowPage(0); UpdateCount();
             FormClosing += delegate(object sender, FormClosingEventArgs e) { if (busy) { e.Cancel = true; cancelled = true; status.Text = "중단 중입니다. 완료되면 닫아 주세요."; } };

@@ -1,8 +1,8 @@
-﻿param([string]$OutputFile = (Join-Path $PSScriptRoot 'FontPocket.exe'))
+param([string]$OutputFile = (Join-Path $PSScriptRoot 'FontPocket.exe'))
 $ErrorActionPreference = 'Stop'
 $manifest=[xml](Get-Content -LiteralPath (Join-Path $PSScriptRoot 'app.manifest') -Raw)
 $assemblyVersion=$manifest.assembly.assemblyIdentity.version
-[IO.File]::WriteAllText((Join-Path $PSScriptRoot 'VersionInfo.cs'),"using System.Reflection;`r`n[assembly: AssemblyVersion(""$assemblyVersion"")]`r`n[assembly: AssemblyFileVersion(""$assemblyVersion"")]`r`n",[Text.UTF8Encoding]::new($true))
+[IO.File]::WriteAllText((Join-Path $PSScriptRoot 'VersionInfo.cs'),"using System.Reflection;`r`n[assembly: AssemblyVersion(""$assemblyVersion"")]`r`n[assembly: AssemblyFileVersion(""$assemblyVersion"")]`r`n[assembly: System.Runtime.Versioning.TargetFramework("".NETFramework,Version=v4.8"")]`r`n",[Text.UTF8Encoding]::new($true))
 $compiler = Join-Path $env:WINDIR 'Microsoft.NET\Framework64\v4.0.30319\csc.exe'
 if (-not (Test-Path -LiteralPath $compiler)) {
     $compiler = Join-Path $env:WINDIR 'Microsoft.NET\Framework\v4.0.30319\csc.exe'

@@ -8,12 +8,12 @@ Font Pocket is a Windows font manager. Import fonts from Noonnu, official font w
 
 [Download the latest release](https://github.com/tae0604/font-pocket/releases/latest)
 
-Run **FontPocket-Setup-0.1.0.exe** from the release assets.
+Run **FontPocket-Setup-0.1.1.exe** from the release assets.
 
 - Windows 10 / 11 · .NET Framework 4.8 or later
 - Installs for the current Windows account
 - Korean and English available in Setup and in the app
-- Change the app language with **Language**; restart to apply
+- Change the app language in **Settings → Language**; restart to apply
 
 ## Features
 
@@ -28,7 +28,7 @@ Run **FontPocket-Setup-0.1.0.exe** from the release assets.
 
 ## Updates
 
-Use **Updates** in the app to check for a new release. You can also enable daily checks at startup.
+Use **Check for updates** to check immediately. Configure daily startup checks in **Settings**.
 
 App updates come only from this official repository. The app verifies the installer size and SHA-256 before installation. Installed fonts and personal settings are preserved.
 
@@ -43,7 +43,7 @@ Report problems or suggest features in [Issues](https://github.com/tae0604/font-
 The original Font Pocket code is available under the [MIT license](LICENSE).
 Bundled fonts retain their own licenses. See [Build instructions](BUILDING.md),
 [Privacy policy](PRIVACY.md), and [Code signing policy](CODE_SIGNING.md).
-SignPath application preparation is in progress; v0.1.0 is currently unsigned.
+The SignPath application has been submitted; review is pending. This release is currently unsigned.
 
 ## 한국어
 
@@ -55,12 +55,12 @@ Font Pocket은 Windows용 폰트 관리 프로그램입니다. 눈누·공식 �
 
 [최신 설치 파일 받기](https://github.com/tae0604/font-pocket/releases/latest)
 
-릴리스의 **FontPocket-Setup-0.1.0.exe**를 실행하세요.
+릴리스의 **FontPocket-Setup-0.1.1.exe**를 실행하세요.
 
 - Windows 10 / 11 · .NET Framework 4.8 이상
 - 현재 Windows 계정에 설치
 - 설치와 앱에서 한국어 / English 선택 가능
-- 앱의 **언어**에서 변경한 뒤 재실행하면 적용
+- 앱의 **설정 → 언어**에서 변경한 뒤 재실행하면 적용
 
 ### 주요 기능
 
@@ -75,7 +75,7 @@ Font Pocket은 Windows용 폰트 관리 프로그램입니다. 눈누·공식 �
 
 ### 업데이트
 
-앱의 **업데이트**에서 새 버전을 확인할 수 있습니다. 시작할 때 하루 한 번 자동 확인하도록 설정할 수도 있습니다.
+앱의 **업데이트 확인**에서 바로 새 버전을 확인합니다. **설정**에서 시작 시 하루 한 번 자동 확인 여부를 바꿀 수 있습니다.
 
 이 공식 저장소의 정식 릴리스에서만 업데이트를 받으며 설치 파일의 크기와 SHA-256을 검증합니다. 설치된 폰트와 개인 설정은 유지됩니다.
 
@@ -87,4 +87,4 @@ Font Pocket은 Windows용 폰트 관리 프로그램입니다. 눈누·공식 �
 
 프로젝트 소스는 MIT 라이선스로 공개합니다. 포함된 폰트에는 별도 라이선스가 적용됩니다.
 [빌드 방법](BUILDING.md) · [개인정보 안내](PRIVACY.md) · [서명 정책](CODE_SIGNING.md).
-현재 0.1.0은 서명되지 않았으며 SignPath 신청을 준비 중입니다.
+현재 버전은 서명되지 않았으며 SignPath 신청 후 심사 결과를 기다리고 있습니다.

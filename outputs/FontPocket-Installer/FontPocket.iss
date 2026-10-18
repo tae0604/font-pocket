@@ -1,4 +1,4 @@
-﻿#define AppVersion "0.1.0"
+#define AppVersion "0.1.1"
 #define AppSource "..\FontPocket"
 
 [Setup]
@@ -9,7 +9,7 @@ AppId={{6B48CEDC-7827-4A9A-979C-D2362E472D8D}
 #endif
 AppName=Font Pocket
 AppVersion={#AppVersion}
-AppVerName=Font Pocket 0.1.0
+AppVerName=Font Pocket {#AppVersion}
 AppPublisher=Font Pocket
 AppComments=폰트 다운로드 및 관리
 DefaultDirName={localappdata}\Programs\Font Pocket
@@ -67,6 +67,8 @@ korean.LaunchApp=Font Pocket 실행
 english.LaunchApp=Launch Font Pocket
 korean.NeedFramework=Font Pocket을 실행하려면 .NET Framework 4.8 이상이 필요합니다.%nWindows 업데이트 또는 Microsoft의 .NET Framework 4.8 설치를 완료한 뒤 다시 실행해 주세요.
 english.NeedFramework=Font Pocket requires .NET Framework 4.8 or later.%nInstall it through Windows Update or Microsoft, then run Setup again.
+korean.SaveLanguageFailed=선택한 앱 언어를 저장하지 못했습니다.
+english.SaveLanguageFailed=Could not save the selected app language.
 
 [Tasks]
 Name: "desktopicon"; Description: "{cm:DesktopIcon}"; GroupDescription: "{cm:Shortcuts}"; Flags: unchecked
@@ -79,6 +81,7 @@ Source: "{#AppSource}\FontPocket.exe"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#AppSource}\사용방법.txt"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#AppSource}\FontPocket.ico"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#AppSource}\Brand\Fonts\Pretendard-LICENSE.txt"; DestDir: "{app}\Licenses"; Flags: ignoreversion
+Source: "{#AppSource}\LICENSE"; DestDir: "{app}\Licenses"; DestName: "FontPocket-MIT.txt"; Flags: ignoreversion
 
 #ifndef QABuild
 [Icons]
@@ -110,6 +113,24 @@ begin
   Result := ExpandConstant('{param:FONTPOCKETUPDATE|0}') = '1';
 end;
 
+procedure CurStepChanged(CurStep: TSetupStep);
+var
+  PreferenceFolder: String;
+begin
+  if CurStep <> ssPostInstall then Exit;
+#ifdef QABuild
+  PreferenceFolder := ExpandConstant('{app}\qa-language');
+#else
+  PreferenceFolder := ExpandConstant('{localappdata}\FontPocket');
+#endif
+  // The app reads this file before the legacy registry preference. Update both
+  // stores so an explicit Setup choice also replaces a previous app setting.
+  if not ForceDirectories(PreferenceFolder) then
+    RaiseException(CustomMessage('SaveLanguageFailed'));
+  if not SaveStringToFile(PreferenceFolder + '\ui-language.txt', AppLanguage(''), False) then
+    RaiseException(CustomMessage('SaveLanguageFailed'));
+end;
+
 function InitializeSetup(): Boolean;
 var
   Release: Cardinal;
@@ -132,5 +153,6 @@ begin
 end;
 
 // User data lives in LocalAppData\FontPocket and fonts in Windows\Fonts.
-// Neither path is installed by this script or removed by the uninstaller.
+// Only the app language preference is written here; user fonts and other data
+// are not installed or removed by this script.
 // Do not add wildcard UninstallDelete rules: preserve user-created files too.

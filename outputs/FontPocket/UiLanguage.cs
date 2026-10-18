@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Drawing;
@@ -20,6 +20,15 @@ namespace FontPocket {
         static readonly HashSet<Control> changing=new HashSet<Control>();
         static UiLanguage() { }
         public static string PreferencePath {get {return Path.Combine(DataPaths.Root,"ui-language.txt");}}
+        public static string PreferredCode {
+            get {
+                if(File.Exists(PreferencePath)) {
+                    string saved=File.ReadAllText(PreferencePath).Trim();
+                    if(saved=="en" || saved=="ko")return saved;
+                }
+                return Code;
+            }
+        }
         static string Load() {
             if(Environment.GetEnvironmentVariable("FONTPOCKET_TEST")=="1")return "ko";
             try {
@@ -77,25 +86,6 @@ namespace FontPocket {
         }
         public static DialogResult Show(string text,string caption="",MessageBoxButtons buttons=MessageBoxButtons.OK,MessageBoxIcon icon=MessageBoxIcon.None) {
             return MessageBox.Show(UiLanguage.Text(text),UiLanguage.Text(caption),buttons,icon);
-        }
-    }
-    public partial class MainWindow {
-        void ShowLanguageSettings() {
-            if(busy)return;
-            using(var form=DialogUI.Form("언어 설정",470,230)) {
-                var layout=new TableLayoutPanel {Dock=DockStyle.Fill,RowCount=3,ColumnCount=1};layout.RowStyles.Add(new RowStyle(SizeType.Absolute,38));layout.RowStyles.Add(new RowStyle(SizeType.Percent,100));layout.RowStyles.Add(new RowStyle(SizeType.Absolute,36));form.Controls.Add(layout);
-                var choice=new ComboBox {DropDownStyle=ComboBoxStyle.DropDownList,Dock=DockStyle.Fill};choice.Items.AddRange(new object[]{"한국어","English"});choice.SelectedIndex=UiLanguage.Code=="en"?1:0;layout.Controls.Add(choice);
-                layout.Controls.Add(new Label {Text="언어 변경은 앱을 다시 시작하면 적용됩니다.",Dock=DockStyle.Fill,Padding=new Padding(0,8,0,0)});
-                var apply=DialogUI.Button("적용",delegate {form.DialogResult=DialogResult.OK;});layout.Controls.Add(apply);
-                if(form.ShowDialog(this)!=DialogResult.OK)return;
-                string code=choice.SelectedIndex==1?"en":"ko";if(code==UiLanguage.Code)return;
-                try {
-                    UiLanguage.Save(code);
-                    if(LocalizedMessage.Show(this,"설정을 저장했습니다. 지금 앱을 다시 시작할까요?","언어 설정",MessageBoxButtons.YesNo,MessageBoxIcon.Question)==DialogResult.Yes) {
-                        Process.Start(new ProcessStartInfo(Application.ExecutablePath){UseShellExecute=true});Close();
-                    }
-                }catch(Exception ex){DialogUI.Error(this,ex);}
-            }
         }
     }
 }

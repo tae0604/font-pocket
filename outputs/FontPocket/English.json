@@ -302,7 +302,7 @@
   "나중에 GitHub 저장소를 설정하면 자동 업데이트를 사용할 수 있습니다.":"Set a GitHub repository when you are ready to enable updates.",
   "GitHub Releases의 정식 릴리스를 확인합니다.":"Checks stable releases on GitHub Releases.",
   "설정 저장":"Save settings",
-  "업데이트 확인":"Check updates",
+  "업데이트 확인":"Check for updates",
   "업데이트 설치":"Install update",
   "업데이트 설정을 저장했습니다.":"Update settings saved.",
   "GitHub 저장소를 먼저 입력하세요.":"Enter a GitHub repository first.",
@@ -336,5 +336,16 @@
   "가변":"Variable",
   "정적":"Static",
   "파일":"File",
-  "모음":"Collection"
+  "모음":"Collection",
+  "설정":"Settings",
+  "Font Pocket 설정":"Font Pocket Settings",
+  "언어와 자동 업데이트 확인을 설정합니다.":"Configure language and automatic update checks.",
+  "업데이트 확인 중입니다.":"Checking for updates.",
+  "업데이트 확인 중…":"Checking for updates…",
+  "업데이트 확인을 중단했습니다.":"Update check canceled.",
+  "업데이트 확인 실패":"Update check failed",
+  "새 업데이트가 있습니다.":"An update is available.",
+  "업데이트 실패":"Update failed",
+  "설정을 저장했습니다.":"Settings saved.",
+  "Font Pocket {0} 버전이 있습니다.\r\n지금 업데이트하시겠습니까?\r\n\r\n다운로드 후 앱을 닫고 설치합니다. 설치된 폰트와 개인 설정은 유지됩니다.":"Font Pocket {0} is available.\r\nWould you like to update now?\r\n\r\nThe app will close after downloading to install the update. Installed fonts and personal settings will be preserved."
 }
