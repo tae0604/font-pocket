@@ -1,7 +1,7 @@
 <p align="center"><strong>English</strong> · <a href="README.ko.md">한국어</a></p>
 
 <p align="center">
-  <img src="docs/images/font-pocket-banner-en.png" alt="Font Pocket — Download. Install. Manage." width="100%">
+  <img src="docs/images/font-pocket-banner-en-poppins-bold.png" alt="Font Pocket — Download. Install. Manage." width="100%">
 </p>
 
 <p align="center">
@@ -33,7 +33,7 @@
 
 **Find installed fonts and preview your selection right below the list.**
 
-![Font Pocket font manager](docs/images/font-manager-en.png)
+![Font Pocket font manager](docs/images/font-manager-en-poppins-bold.png)
 
 <details>
 <summary>Font details and comparison screenshots</summary>
