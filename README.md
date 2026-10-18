@@ -1,110 +1,108 @@
-# Font Pocket
+<p align="center"><strong>English</strong> · <a href="README.ko.md">한국어</a></p>
 
-Download and install fonts together, then manage them in one place.
+<p align="center">
+  <img src="docs/images/font-pocket-banner-en.png" alt="Font Pocket — Download. Install. Manage." width="100%">
+</p>
 
-Font Pocket is a Windows font manager. Import fonts from Noonnu, Google Fonts, Font Library, official font websites, direct download links, ZIP archives or folders, then preview and manage them in one place.
+<p align="center">
+  <strong>Batch-download fonts from links. Install and manage them in one place.</strong><br>
+  A free, open-source Windows font tool built by a middle school student.
+</p>
 
-## Why I built Font Pocket
+<p align="center">
+  <a href="https://github.com/tae0604/font-pocket/releases/latest"><strong>Download</strong></a> ·
+  <a href="#getting-started">Getting started</a> ·
+  <a href="#why-i-built-it">Why I built it</a> ·
+  <a href="https://github.com/tae0604/font-pocket/issues">Feedback</a> ·
+  <a href="BUILDING.md">Build from source</a>
+</p>
 
-I often reset Windows, and every time I got a new computer, I had to set up my fonts for Figma all over again: download each font, extract the ZIP files, open the folders and install the font files one by one.
+<p align="center">
+  <a href="https://github.com/tae0604/font-pocket/actions/workflows/windows-build.yml"><img src="https://github.com/tae0604/font-pocket/actions/workflows/windows-build.yml/badge.svg" alt="Build Font Pocket"></a>
+  <a href="https://github.com/tae0604/font-pocket/releases/latest"><img src="https://img.shields.io/github/v/release/tae0604/font-pocket?label=release&amp;color=2B60A3" alt="Latest release"></a>
+  <a href="https://github.com/tae0604/font-pocket/releases"><img src="https://img.shields.io/github/downloads/tae0604/font-pocket/total?color=2B60A3" alt="GitHub release downloads"></a>
+  <img src="https://img.shields.io/badge/Windows-10%20%7C%2011-2B60A3" alt="Windows 10 and 11">
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-2B60A3" alt="MIT license"></a>
+</p>
 
-Repeating that process became tedious. Font Pocket started with a simple goal: download and install the fonts I needed together, instead of going through the same steps for every font.
+| Paste links. Get fonts. | Preview before installing. | Keep your fonts organized. |
+| --- | --- | --- |
+| Add multiple font links and download them together. ZIP archives, font files and folders can share the same queue. | Try your own text, compare typefaces and adjust variable-font axes inside the app. | Search installed fonts, check duplicates, enable or disable fonts, and back up what you need. |
 
-You can add multiple Noonnu links, ZIP archives and individual font files to the same queue, choose the formats you want, and install them together.
+## See it in action
+
+**Find installed fonts and preview your selection right below the list.**
+
+![Font Pocket font manager](docs/images/font-manager-en.png)
+
+<details>
+<summary>Font details and comparison screenshots</summary>
+
+### Edit preview text and size directly
+
+Explore character maps, character coverage, metadata and file inspection in the same window.
+
+![Font details with editable preview text and size](docs/images/font-details-en.png)
+
+### Compare fonts with the same text
+
+![Two fonts compared side by side](docs/images/font-comparison-en.png)
+
+</details>
 
 ## Download
 
-[Download the latest release](https://github.com/tae0604/font-pocket/releases/latest)
+**[Get the latest installer →](https://github.com/tae0604/font-pocket/releases/latest)**
 
-Run the **FontPocket-Setup-<version>.exe** installer from the latest release assets.
+Download **`FontPocket-Setup-<version>.exe`** from the release assets and run it. Font Pocket installs for the current Windows account. Existing fonts and personal settings are preserved when updating.
 
-- Windows 10 / 11 · .NET Framework 4.8 or later
-- Installs for the current Windows account
-- Korean and English available in Setup and in the app
-- Change the app language in **Settings → Language**; restart to apply
+- Windows 10 / 11 and .NET Framework 4.8 or later
+- Korean and English — change the language in **Settings → Language**, then restart
+- Microsoft Edge WebView2 Runtime is needed for in-app variable previews and WOFF2 imports
+
+<details>
+<summary>Installation and updates</summary>
+
+- The `.exe.sha256` file is provided for integrity verification. You only need the installer for a normal installation.
+- Current installers are unsigned. See the [code signing policy](CODE_SIGNING.md).
+- Use **Settings → Check for updates** to check manually, or enable a daily check at startup.
+- App updates come only from this official repository. Font Pocket verifies the installer size and SHA-256 before installation.
+
+</details>
+
+## Getting started
+
+1. Open **Install fonts** and paste one or more font links. You can also add font files, ZIP archives or folders.
+2. Preview the available fonts, check the files you want and choose **Install selected fonts**.
+3. Open **Font manager** to search, compare and organize installed fonts, or **Backup** to save a copy.
+
+You can also open font files directly with Font Pocket in Windows. Multiple files share one preview window; installation starts when you choose to install.
 
 ## Features
 
-- Download fonts from website links and import ZIP archives or folders
-- Import TTF, OTF, TTC, OTC, SFNT, WOFF and WOFF2 files; webfonts are converted before Windows installation
-- Preview fonts before installing, compare fonts and browse a font catalog
-- Adjust variable-font axes in the app and filter by weight, language, type or format
-- Open font files directly in one preview window without launching the main window
-- Enable or disable fonts and review duplicates
-- Inspect characters, language coverage, metadata and font versions
-- Back up selected fonts and restore them later
-- Organize favorites, notes, tags and collections; find fonts with quick search
-- Print font samples and character maps, or save them as PDF
+| Area | What you can do |
+| --- | --- |
+| Batch downloads and imports | Gather fonts from Noonnu, Google Fonts, Font Library, official websites, direct download links, ZIP archives and folders |
+| File formats | Import TTF, OTF, TTC, OTC, SFNT, WOFF and WOFF2. WOFF/WOFF2 files are converted to installable TTF/OTF |
+| Preview and compare | Edit sample text and size, compare fonts, browse a catalog and adjust variable-font axes in the app |
+| Search and filters | Filter by weight, language/script coverage, variable/static type and format; view dates added |
+| Font management | Enable or disable fonts, check duplicates, organize favorites and collections, add notes and tags, and manage versions |
+| Inspection | Explore characters, coverage, creator and license metadata, and inspect font files |
+| Backup and restore | Back up selected fonts or your environment; preserve an existing ZIP when cancelling; create recovery backups before deletion |
+| Printing | Print font samples and character maps, or save them as PDF |
 
-## Updates
+## Why I built it
 
-Use **Check for updates** to check immediately. Configure daily startup checks in **Settings**.
+Hi! I'm a middle school student interested in coding and design.
 
-App updates come only from this official repository. The app verifies the installer size and SHA-256 before installation. Installed fonts and personal settings are preserved.
+I normally use a Mac, but whenever I reset Windows or got a new computer, I had to prepare my fonts for Figma again: download each font, extract the ZIP files, open the folders and install the font files one by one.
 
-## Feedback
+Repeating those steps was tedious. I started Font Pocket so I could **paste multiple links, download the fonts together and install them in one go**. Font management grew from there: previewing, comparing, organizing and backing up fonts in the same app.
 
-Report problems or suggest features in [Issues](https://github.com/tae0604/font-pocket/issues).
+I'm improving it as I use it. If something gets in your way or you have an idea, please [open an issue](https://github.com/tae0604/font-pocket/issues).
 
----
+## Development and license
 
-## Source and license
+[Build instructions](BUILDING.md) · [Privacy](PRIVACY.md) · [Code signing](CODE_SIGNING.md) · [0.1.4 changes](CHANGELOG-0.1.4.md)
 
-The original Font Pocket code is available under the [MIT license](LICENSE).
-Bundled fonts retain their own licenses. See [Build instructions](BUILDING.md),
-[Privacy policy](PRIVACY.md), and [Code signing policy](CODE_SIGNING.md).
-The SignPath application has been submitted; review is pending. This release is currently unsigned.
-
-## 한국어
-
-여러 폰트를 한 번에 내려받고 설치하고, 한곳에서 관리합니다.
-
-Font Pocket은 Windows용 폰트 관리 프로그램입니다. 눈누·Google Fonts·Font Library·공식 사이트의 링크, 다운로드 주소, ZIP 파일이나 폴더에서 폰트를 가져오고 한곳에서 관리할 수 있습니다.
-
-### 만들게 된 계기
-
-저는 윈도우를 초기화할 때가 종종 있고, 컴퓨터를 새로 살 때마다 피그마(Figma)에서 쓸 폰트를 다시 준비해야 했습니다. 폰트를 하나씩 다운로드하고, 압축을 풀고, 폴더에 들어가 필요한 폰트 파일을 찾아 설치하는 일을 매번 반복했습니다.
-
-이 과정이 번거로워서 **필요한 폰트를 한 번에 다운로드하고 설치할 수 있으면 좋겠다**는 생각으로 만들기 시작한 프로그램이 Font Pocket입니다.
-
-눈누 링크 여러 개, ZIP 파일, 단일 폰트 파일을 같은 대기열에 모으고, 원하는 파일 형식을 골라 한 번에 설치할 수 있도록 했습니다.
-
-### 다운로드
-
-[최신 설치 파일 받기](https://github.com/tae0604/font-pocket/releases/latest)
-
-최신 릴리스에서 **FontPocket-Setup-<버전>.exe** 설치 파일을 받아 실행하세요.
-
-- Windows 10 / 11 · .NET Framework 4.8 이상
-- 현재 Windows 계정에 설치
-- 설치와 앱에서 한국어 / English 선택 가능
-- 앱의 **설정 → 언어**에서 변경한 뒤 재실행하면 적용
-
-### 주요 기능
-
-- 웹사이트 링크·ZIP·폴더에서 폰트 가져오기
-- TTF·OTF·TTC·OTC·SFNT·WOFF·WOFF2 가져오기 및 설치 (웹폰트는 설치용 형식으로 변환)
-- 설치 전 미리보기, 여러 폰트 비교, 전체 폰트 견본
-- 앱 안에서 가변 축 조절, 굵기·언어·종류·형식 필터
-- 폰트 파일을 열면 메인 화면 대신 하나의 미리보기 창에서 확인
-- 폰트 활성화·비활성화, 중복 확인·정리
-- 문자표, 지원 문자 범위, 제작자 정보와 폰트 버전 확인
-- 선택 백업·복원
-- 즐겨찾기, 메모, 태그, 모음, 빠른 검색
-- 폰트 견본·문자표 인쇄 및 PDF 저장
-
-### 업데이트
-
-앱의 **업데이트 확인**에서 바로 새 버전을 확인합니다. **설정**에서 시작 시 하루 한 번 자동 확인 여부를 바꿀 수 있습니다.
-
-이 공식 저장소의 정식 릴리스에서만 업데이트를 받으며 설치 파일의 크기와 SHA-256을 검증합니다. 설치된 폰트와 개인 설정은 유지됩니다.
-
-### 문의
-
-문제나 제안은 [Issues](https://github.com/tae0604/font-pocket/issues)에 남겨 주세요.
-
-### 소스와 라이선스
-
-프로젝트 소스는 MIT 라이선스로 공개합니다. 포함된 폰트에는 별도 라이선스가 적용됩니다.
-[빌드 방법](BUILDING.md) · [개인정보 안내](PRIVACY.md) · [서명 정책](CODE_SIGNING.md).
-현재 버전은 서명되지 않았으며 SignPath 신청 후 심사 결과를 기다리고 있습니다.
+The original project code and artwork are available under the [MIT license](LICENSE). Bundled fonts and external components retain their own licenses; see [third-party notices](THIRD_PARTY_NOTICES.md). Fonts you download remain subject to their creators' licenses.
