@@ -1,14 +1,22 @@
 # Font Pocket
 
-Download, install and manage your fonts.
+Download and install fonts together, then manage them in one place.
 
 Font Pocket is a Windows font manager. Import fonts from Noonnu, official font websites, direct download links, ZIP archives or folders, then preview and manage them in one place.
+
+## Why I built Font Pocket
+
+I often reset Windows, and every time I got a new computer, I had to set up my fonts for Figma all over again: download each font, extract the ZIP files, open the folders and install the font files one by one.
+
+Repeating that process became tedious. Font Pocket started with a simple goal: download and install the fonts I needed together, instead of going through the same steps for every font.
+
+You can add multiple Noonnu links, ZIP archives and individual font files to the same queue, choose the formats you want, and install them together.
 
 ## Download
 
 [Download the latest release](https://github.com/tae0604/font-pocket/releases/latest)
 
-Run **FontPocket-Setup-0.1.1.exe** from the release assets.
+Run the **FontPocket-Setup-<version>.exe** installer from the latest release assets.
 
 - Windows 10 / 11 · .NET Framework 4.8 or later
 - Installs for the current Windows account
@@ -47,15 +55,23 @@ The SignPath application has been submitted; review is pending. This release is 
 
 ## 한국어
 
-폰트를 내려받고, 설치하고, 관리합니다.
+여러 폰트를 한 번에 내려받고 설치하고, 한곳에서 관리합니다.
 
 Font Pocket은 Windows용 폰트 관리 프로그램입니다. 눈누·공식 사이트의 링크, 다운로드 주소, ZIP 파일이나 폴더에서 폰트를 가져오고 한곳에서 관리할 수 있습니다.
+
+### 만들게 된 계기
+
+저는 Windows를 초기화할 때가 종종 있고, 컴퓨터를 새로 살 때마다 Figma에서 쓸 폰트를 다시 준비해야 했습니다. 폰트를 하나씩 다운로드하고, 압축을 풀고, 폴더에 들어가 필요한 폰트 파일을 찾아 설치하는 일을 매번 반복했습니다.
+
+이 과정이 번거로워서 **필요한 폰트를 한 번에 다운로드하고 설치할 수 있으면 좋겠다**는 생각으로 만들기 시작한 프로그램이 Font Pocket입니다.
+
+눈누 링크 여러 개, ZIP 파일, 단일 폰트 파일을 같은 대기열에 모으고, 원하는 파일 형식을 골라 한 번에 설치할 수 있도록 했습니다.
 
 ### 다운로드
 
 [최신 설치 파일 받기](https://github.com/tae0604/font-pocket/releases/latest)
 
-릴리스의 **FontPocket-Setup-0.1.1.exe**를 실행하세요.
+최신 릴리스에서 **FontPocket-Setup-<버전>.exe** 설치 파일을 받아 실행하세요.
 
 - Windows 10 / 11 · .NET Framework 4.8 이상
 - 현재 Windows 계정에 설치
