@@ -35,18 +35,18 @@
 
 Paste one font URL per line, choose **Add to queue**, then pick the files to download.
 
-![Paste multiple font links into Font Pocket](docs/images/font-download-links-en.png)
+![Paste multiple font links into Font Pocket](docs/images/font-download-links-en-localized.png)
 
 <details>
 <summary>Downloaded fonts, ZIP archives and individual font files in one queue</summary>
 
 Choose the styles you need after downloading. This example uses Pretendard, SUIT and Poppins.
 
-![Downloaded SUIT and Poppins fonts alongside imported font files](docs/images/font-download-queue-en.png)
+![Downloaded SUIT and Poppins fonts alongside imported font files](docs/images/font-download-queue-en-localized.png)
 
 Use **Add files / ZIP** to add a package such as `BM-fonts-package.zip` or a single file such as `양진체v0.93.otf` to the same queue. ZIP archives are extracted by the app; you can choose the font format before installing.
 
-![Font files from a ZIP package and an individual OTF in the queue](docs/images/font-download-files-en.png)
+![Font files from a ZIP package and an individual OTF in the queue](docs/images/font-download-files-en-localized.png)
 
 Try these links:
 

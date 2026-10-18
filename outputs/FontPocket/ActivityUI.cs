@@ -28,6 +28,7 @@ namespace FontPocket {
             if (message.StartsWith("입력:") || message.StartsWith("추가 탐색:")) return;
             string compact = Regex.Replace(message, @"https?://\S+", "").Replace("\r", " ").Replace("\n", " ").Trim(' ', '·', ':', '→');
             if (compact.Length == 0) return;
+            compact = UiLanguage.Text(compact);
             if (compact.Length > 160) compact = compact.Substring(0, 157) + "…";
             recentLog.BeginUpdate();
             try {

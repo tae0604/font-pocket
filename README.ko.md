@@ -35,18 +35,18 @@
 
 폰트 주소를 한 줄에 하나씩 붙여넣고 **대기열에 추가**를 누른 뒤, 다운로드할 파일을 선택하세요.
 
-![여러 폰트 링크를 한 번에 입력하는 화면 — 영어 UI](docs/images/font-download-links-en.png)
+![여러 폰트 링크를 한 번에 입력하는 화면](docs/images/font-download-links-ko-localized.png)
 
 <details>
 <summary>다운로드한 폰트·ZIP·개별 폰트를 같은 대기열에 모으기</summary>
 
-다운로드한 폰트에서 필요한 스타일을 고를 수 있습니다. 프리텐다드·SUIT·Poppins를 사용한 예시입니다. 아래 시연은 앱 언어를 영어로 설정한 화면입니다.
+다운로드한 폰트에서 필요한 스타일을 고를 수 있습니다. 프리텐다드·SUIT·Poppins를 사용한 예시입니다.
 
-![다운로드한 SUIT·Poppins와 추가한 폰트 파일이 모인 대기열](docs/images/font-download-queue-en.png)
+![다운로드한 SUIT·Poppins와 추가한 폰트 파일이 모인 대기열](docs/images/font-download-queue-ko-localized.png)
 
 **파일 / ZIP 추가**로 `BM-fonts-package.zip` 같은 묶음 파일이나 `양진체v0.93.otf` 같은 개별 파일도 같은 대기열에 넣을 수 있습니다. ZIP은 앱에서 풀어 주며, 설치 전에 원하는 파일 형식을 선택할 수 있습니다.
 
-![ZIP 안의 폰트와 개별 OTF 파일을 함께 불러온 화면](docs/images/font-download-files-en.png)
+![ZIP 안의 폰트와 개별 OTF 파일을 함께 불러온 화면](docs/images/font-download-files-ko-localized.png)
 
 예제 링크:
 
