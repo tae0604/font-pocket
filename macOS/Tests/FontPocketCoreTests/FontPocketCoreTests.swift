@@ -46,6 +46,22 @@ final class FontPocketCoreTests: XCTestCase {
         XCTAssertTrue(ArchivePolicy.safePath("ttf/견본.ttf"))
         XCTAssertThrowsError(try ArchivePolicy.validate(Data("not a zip".utf8)))
     }
+    func testLiveDownloadSourcesOnHostedMac() async throws {
+        guard ProcessInfo.processInfo.environment["FONTPOCKET_LIVE_DOWNLOAD_TEST"] == "1" else {
+            throw XCTSkip("Live provider checks only run on the hosted preview builder.")
+        }
+        for input in ["https://noonnu.cc/font_page/694", "https://noonnu.cc/font_page/845", "https://fonts.google.com/specimen/Poppins?preview.lang=en_Latn"] {
+            let choices = try await FontDownloads.resolve(URL(string: input)!)
+            XCTAssertFalse(choices.isEmpty, input)
+            if input.contains("694") { continue }
+            let preferred = choices.first { $0.name.lowercased().contains("bold") && !$0.name.lowercased().contains("italic") }
+                ?? choices.first { $0.name.lowercased().contains("ttf") } ?? choices[0]
+            let download = try await FontDownloads.download(preferred, into: root.appendingPathComponent("Downloads"))
+            let importer = try FontImporter(workspace: root.appendingPathComponent(UUID().uuidString))
+            let faces = try await importer.read([download])
+            XCTAssertFalse(faces.isEmpty, input)
+        }
+    }
     func testFontMetadataAndInstallationLifecycle() async throws {
         let file = try fixture(), repo = try FontRepository(paths: paths(), registration: TestRegistration())
         let faces = try FontReader.faces(file)
