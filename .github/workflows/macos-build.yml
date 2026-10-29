@@ -49,3 +49,6 @@ jobs:
             macOS/dist/screenshots/*.png
           if-no-files-found: error
           retention-days: 14
+      - name: Export public preview for visual review
+        if: github.ref == 'refs/heads/codex/macos-native'
+        run: python3 macOS/export-review.py

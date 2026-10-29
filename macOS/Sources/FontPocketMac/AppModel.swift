@@ -26,6 +26,10 @@ struct DownloadRequest: Identifiable { let id = UUID(); let candidates: [Downloa
     @Published var error: String?
     @Published var activity: [ActivityEntry] = []
     @Published var downloadRequest: DownloadRequest?
+    // Only used when launching the disposable CI UI verification mode.
+    @Published var testReduceTransparency = false
+    @Published var testReduceMotion = false
+    @Published var testAppearance: ColorScheme?
     @Published var language: String { didSet { UserDefaults.standard.set(language, forKey: "language") } }
     @Published var favorites: Set<String> { didSet { UserDefaults.standard.set(Array(favorites), forKey: "favorites") } }
     let workspace: URL

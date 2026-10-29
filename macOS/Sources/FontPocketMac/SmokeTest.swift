@@ -1,4 +1,5 @@
 import AppKit
+import SwiftUI
 import Foundation
 import FontPocketCore
 
@@ -33,9 +34,15 @@ import FontPocketCore
                 try await Task.sleep(nanoseconds: 700_000_000)
                 try await capture(filename, output: output)
             }
+            for (appearance, reduced, name) in [(ColorScheme.light, false, "manager-light.png"), (ColorScheme.dark, false, "manager-dark.png"), (ColorScheme.light, true, "manager-accessible.png")] {
+                model.testAppearance = appearance
+                model.testReduceTransparency = reduced; model.testReduceMotion = reduced
+                try await Task.sleep(nanoseconds: 700_000_000)
+                try await capture(name, output: output)
+            }
             try await FontBackup.create(files: [installed.file], destination: URL(fileURLWithPath: output).appendingPathComponent("smoke-backup.zip"))
             if let key = installed.managedKey { try await model.repository.setEnabled(key, enabled: false) }
-            print("PASS: Native app launched; real import, user-wide install, disable, re-enable and backup passed; Korean and English windows rendered.")
+            print("PASS: Native app launched; real import, user-wide install, disable, re-enable and backup passed; Korean/English, light/dark and reduced-transparency/motion windows rendered.")
             NSApp.terminate(nil)
         } catch { fputs("Smoke test failed: \(error)\n", stderr); exit(1) }
     }
