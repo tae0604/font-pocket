@@ -86,8 +86,8 @@ public enum FontAnalysis {
 }
 
 public extension FontFace {
-    var weight: Double { (CTFontCopyTraits(previewFont(size: 12)) as NSDictionary)[kCTFontWeightTrait] as? Double ?? 0 }
-    var isVariable: Bool { !(CTFontCopyVariationAxes(previewFont(size: 12)) as? [Any] ?? []).isEmpty }
+    var weight: Double { weightValue }
+    var isVariable: Bool { variable }
     func variedFont(size: Double, values: [Int: Double]) -> CTFont {
         let original = previewFont(size: size)
         guard !values.isEmpty else { return original }

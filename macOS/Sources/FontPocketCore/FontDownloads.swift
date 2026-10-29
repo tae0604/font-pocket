@@ -19,7 +19,7 @@ private final class HTTPTransfer: NSObject, URLSessionDataDelegate, @unchecked S
         let session = URLSession(configuration: config, delegate: self, delegateQueue: nil)
         self.session = session
         var request = URLRequest(url: url)
-        request.setValue("FontPocket-macOS/0.1.0", forHTTPHeaderField: "User-Agent")
+        request.setValue("FontPocket-macOS/0.2.0", forHTTPHeaderField: "User-Agent")
         let task = session.dataTask(with: request); self.task = task; task.resume()
     }
     func cancel() { lock.lock(); wasCancelled = true; task?.cancel(); lock.unlock() }
@@ -148,7 +148,7 @@ public enum FontDownloads {
         throw PocketError("No desktop font download was found. Download the ZIP from the creator's site, then add it here.")
     }
     public static func download(_ choice: DownloadCandidate, into folder: URL) async throws -> URL {
-        let data = try await HTTPClient.get(choice.url, maximum: 200*1024*1024)
+        let data = try await HTTPClient.get(choice.url, maximum: ArchivePolicy.maximumCompressed)
         try Task.checkCancellation()
         var ext = choice.url.pathExtension.lowercased()
         if data.prefix(4) == Data([0x50,0x4b,0x03,0x04]) { ext = "zip" }

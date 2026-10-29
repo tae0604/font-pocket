@@ -1,7 +1,7 @@
 #!/bin/bash
 set -euo pipefail
 cd "$(dirname "$0")"
-VERSION=0.1.0
+VERSION=0.2.0
 OUT="$PWD/dist"
 APP="$OUT/Font Pocket.app"
 swift build -c release --arch arm64 --arch x86_64
@@ -31,7 +31,7 @@ cat > "$APP/Contents/Info.plist" <<PLIST
 <key>CFBundleDisplayName</key><string>Font Pocket</string>
 <key>CFBundlePackageType</key><string>APPL</string>
 <key>CFBundleShortVersionString</key><string>$VERSION</string>
-<key>CFBundleVersion</key><string>1</string>
+<key>CFBundleVersion</key><string>2</string>
 <key>CFBundleIconFile</key><string>FontPocket.icns</string>
 <key>LSMinimumSystemVersion</key><string>13.0</string>
 <key>NSHighResolutionCapable</key><true/>
@@ -40,7 +40,7 @@ cat > "$APP/Contents/Info.plist" <<PLIST
 <key>CFBundleTypeName</key><string>Font files and ZIP archives</string>
 <key>CFBundleTypeRole</key><string>Viewer</string>
 <key>LSHandlerRank</key><string>Alternate</string>
-<key>CFBundleTypeExtensions</key><array><string>ttf</string><string>otf</string><string>ttc</string><string>otc</string><string>zip</string></array>
+<key>CFBundleTypeExtensions</key><array><string>ttf</string><string>otf</string><string>ttc</string><string>otc</string><string>zip</string><string>woff</string><string>woff2</string><string>sfnt</string></array>
 </dict></array>
 </dict></plist>
 PLIST

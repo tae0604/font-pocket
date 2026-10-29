@@ -23,13 +23,19 @@ struct DownloadRequest: Identifiable { let id = UUID(); let candidates: [Downloa
     @Published var formatFilter = ""
     @Published var stateFilter = ""
     @Published var languageFilter = ""
-    @Published var variableOnly = false
+    @Published var variableOnly = false {didSet{if variableOnly{fixedOnly=false}}}
+    @Published var fixedOnly = false {didSet{if fixedOnly{variableOnly=false}}}
+    @Published var weightFilter = ""
     @Published var groupFamilies = false
     @Published var importFormat = "TTF"
+    @Published var importKind = "all"
     @Published var includeTTC = false
     @Published var automaticUpdates = UserDefaults.standard.object(forKey:"automaticUpdates") as? Bool ?? true { didSet{UserDefaults.standard.set(automaticUpdates,forKey:"automaticUpdates")} }
     @Published var quickSearch = false
     @Published var tools = false
+    @Published var toolsTab = "notes"
+    @Published var details = false
+    @Published var detailsTab = "preview"
     let personalStore: PersonalLibrary
     let vault: VersionVault
     @Published var links = ""
@@ -46,7 +52,7 @@ struct DownloadRequest: Identifiable { let id = UUID(); let candidates: [Downloa
     @Published var testReduceMotion = false
     @Published var testAppearance: ColorScheme?
     @Published var language: String { didSet { UserDefaults.standard.set(language, forKey: "language") } }
-    @Published var favorites: Set<String> { didSet { UserDefaults.standard.set(Array(favorites), forKey: "favorites") } }
+    let dataRoot: URL
     let workspace: URL
     let repository: FontRepository
     let importer: FontImporter
@@ -56,9 +62,8 @@ struct DownloadRequest: Identifiable { let id = UUID(); let candidates: [Downloa
 
     init() throws {
         language = UserDefaults.standard.string(forKey: "language") ?? (Locale.preferredLanguages.first?.hasPrefix("ko") == true ? "ko" : "en")
-        favorites = Set(UserDefaults.standard.stringArray(forKey: "favorites") ?? [])
         workspace = FileManager.default.temporaryDirectory.appendingPathComponent("FontPocket-Mac-\(UUID().uuidString)")
-        let dataRoot = ProcessInfo.processInfo.environment["FONTPOCKET_MAC_TEST_ROOT"].map{URL(fileURLWithPath:$0).appendingPathComponent("Personal")} ?? LibraryPaths.live.root
+        dataRoot = ProcessInfo.processInfo.environment["FONTPOCKET_MAC_TEST_ROOT"].map{URL(fileURLWithPath:$0).appendingPathComponent("Personal")} ?? LibraryPaths.live.root
         personalStore = try PersonalLibrary(root:dataRoot)
         vault = try VersionVault(root:dataRoot.appendingPathComponent("Versions"))
         if let root = ProcessInfo.processInfo.environment["FONTPOCKET_MAC_TEST_ROOT"] {
@@ -66,20 +71,25 @@ struct DownloadRequest: Identifiable { let id = UUID(); let candidates: [Downloa
             repository = try FontRepository(paths: LibraryPaths(root: folder.appendingPathComponent("Catalog"), fonts: folder.appendingPathComponent("Fonts")))
         } else { repository = try FontRepository() }
         importer = try FontImporter(workspace: workspace, converter: { url,folder in try await WebFontCodec.prepare(url,folder:folder) })
+        if let data = try? Data(contentsOf:dataRoot.appendingPathComponent("activity.json")),let saved = try? JSONDecoder().decode([ActivityEntry].self,from:data){activity=saved}
         if language == "en" { previewText = "The quick brown fox jumps over the lazy dog.\nA typeface for every idea." }
     }
     func t(_ ko: String, _ en: String) -> String { language == "ko" ? ko : en }
     var visibleFonts: [FontFace] {
         let filtered = fonts.filter { face in
             let annotation=personal.annotations[face.id] ?? FontAnnotation()
-            let terms=face.title+" "+face.format+" "+face.file.lastPathComponent+" "+annotation.note+" "+annotation.tags.joined(separator:" ")
+            let terms=face.title+" "+face.version+" "+face.format+" "+face.file.lastPathComponent+" "+annotation.note+" "+annotation.tags.joined(separator:" ")
             if !search.isEmpty && !terms.localizedCaseInsensitiveContains(search){return false}
-            if onlyFavorites && !favorites.contains(face.id) && !annotation.favorite{return false}
+            if onlyFavorites && !annotation.favorite{return false}
             if !formatFilter.isEmpty && face.format != formatFilter{return false}
-            if !stateFilter.isEmpty && face.state.rawValue != stateFilter{return false}
+            if !stateFilter.isEmpty && !(stateFilter == "enabled" ? [.enabled,.external].contains(face.state) : face.state.rawValue == stateFilter){return false}
             if variableOnly && !face.isVariable{return false}
+            if fixedOnly && face.isVariable{return false}
+            if weightFilter == "light" && face.weight >= -0.2{return false}
+            if weightFilter == "regular" && (face.weight < -0.2 || face.weight > 0.25){return false}
+            if weightFilter == "bold" && face.weight <= 0.25{return false}
             if let id=activeCollection,let collection=personal.collections.first(where:{$0.id==id}),!collection.contains(face,annotation:annotation){return false}
-            if !languageFilter.isEmpty,let range=FontAnalysis.ranges.first(where:{$0.0==languageFilter})?.1{let charset=CTFontCopyCharacterSet(face.previewFont(size:12));if !range.contains(where:{CFCharacterSetIsLongCharacterMember(charset,$0)}){return false}}
+            if !languageFilter.isEmpty && !face.scripts.contains(languageFilter){return false}
             return true
         }
         return groupFamilies ? filtered.sorted{$0.family==$1.family ? $0.weight < $1.weight : $0.family.localizedStandardCompare($1.family) == .orderedAscending} : filtered
@@ -90,6 +100,7 @@ struct DownloadRequest: Identifiable { let id = UUID(); let candidates: [Downloa
     func record(_ text: String) {
         activity.insert(ActivityEntry(date: Date(), message: text), at: 0)
         if activity.count > 200 { activity.removeLast(activity.count-200) }
+        if let data=try? JSONEncoder().encode(activity){try? data.write(to:dataRoot.appendingPathComponent("activity.json"),options:.atomic)}
         status = text
     }
     func perform(_ title: String, action: @escaping @MainActor () async throws -> Void) {
@@ -116,6 +127,10 @@ struct DownloadRequest: Identifiable { let id = UUID(); let candidates: [Downloa
     func refresh() { perform(t("폰트 목록 읽는 중…", "Reading fonts…")) { try await self.reload() } }
     private func reload() async throws {
         personal = try await personalStore.read()
+        if let legacy=UserDefaults.standard.stringArray(forKey:"favorites"),!legacy.isEmpty{
+            for id in legacy{var entry=personal.annotations[id] ?? FontAnnotation();entry.favorite=true;personal.annotations[id]=entry}
+            try await personalStore.save(personal);UserDefaults.standard.removeObject(forKey:"favorites")
+        }
         fonts = try await repository.library(includeSystem: showSystem)
         selection.formIntersection(Set(fonts.map(\.id)))
         status = t("폰트 \(fonts.count)개", "\(fonts.count) \(fonts.count == 1 ? "font" : "fonts")")
@@ -143,11 +158,17 @@ struct DownloadRequest: Identifiable { let id = UUID(); let candidates: [Downloa
         // Prefer one file format for a PostScript name, avoiding duplicate TTF/OTF installation.
         var names = Set(queue.filter { checked.contains($0.id) }.map(\.postScript))
         for face in added.sorted(by: { ($0.format == "TTF" ? 0 : 1) < ($1.format == "TTF" ? 0 : 1) }) {
-            if (face.format == importFormat || importFormat == "ALL" || ["TTC","OTC"].contains(face.format) && includeTTC),names.insert(face.postScript).inserted { checked.insert(face.id) }
+            if preferredImport(face),names.insert(face.postScript).inserted { checked.insert(face.id) }
         }
         if queueSelection.isEmpty, let first = queue.first { queueSelection = [first.id] }
         record(t("폰트 \(added.count)개를 대기열에 추가했습니다.", "Added \(added.count) fonts to the queue."))
     }
+    func preferredImport(_ face:FontFace)->Bool{
+        if ["TTC","OTC"].contains(face.format){if !includeTTC{return false}}
+        else if importFormat != "ALL" && face.format != importFormat{return false}
+        return importKind == "all" || (importKind == "variable" ? face.isVariable:!face.isVariable)
+    }
+    func applyImportPreferences(){checked=Set(queue.filter{preferredImport($0)}.map(\.id))}
     func downloadLinks() {
         let lines = links.components(separatedBy: .whitespacesAndNewlines).filter { !$0.isEmpty }
         guard !lines.isEmpty, lines.count <= 30, lines.allSatisfy({ URL(string: $0)?.scheme?.lowercased() == "https" }) else {
@@ -190,7 +211,7 @@ struct DownloadRequest: Identifiable { let id = UUID(); let candidates: [Downloa
         let files = Array(Set(selected.map(\.file))).sorted { $0.path < $1.path }
         guard !files.isEmpty else { return }
         perform(t("폰트 설치 중…", "Installing fonts…")) {
-            var count = 0, failures: [String] = []
+            var count = 0, archived = 0, failures: [String] = []
             for (index, file) in files.enumerated() {
                 try Task.checkCancellation()
                 self.status = self.t("설치 중", "Installing") + " \(index+1) / \(files.count)"
@@ -199,13 +220,17 @@ struct DownloadRequest: Identifiable { let id = UUID(); let candidates: [Downloa
                     let incoming=try FontReader.faces(file)
                     let overlaps=self.fonts.contains{old in (old.state == .enabled || old.state == .external) && incoming.contains{$0.postScript==old.postScript}}
                     if !overlaps,try await self.repository.install(file) { count += 1 }
+                    if overlaps{archived += 1}
+                    let hash=try FontReader.hash(file)
+                    for face in incoming{if let entry=self.personal.annotations.removeValue(forKey:face.id){self.personal.annotations[hash+"|"+face.postScript]=entry}}
                     let done = Set(self.queue.filter { $0.file == file }.map(\.id))
                     self.queue.removeAll { done.contains($0.id) }; self.checked.subtract(done); self.queueSelection.subtract(done)
                 } catch is CancellationError { throw CancellationError() }
                 catch { failures.append(error.localizedDescription) }
             }
+            try await self.personalStore.save(self.personal)
             try await self.reload()
-            self.record(self.t("폰트 파일 \(count)개 설치 완료", "Installed \(count) font files"))
+            self.record(self.t("폰트 파일 \(count)개 설치 · 동일 이름 \(archived)개는 버전 보관함에 저장", "Installed \(count) font files · \(archived) conflicting versions archived"))
             if !failures.isEmpty { throw PocketError(failures.joined(separator: "\n")) }
         }
     }
@@ -231,7 +256,7 @@ struct DownloadRequest: Identifiable { let id = UUID(); let candidates: [Downloa
         alert.addButton(withTitle: t("휴지통으로 이동", "Move to Trash")); alert.addButton(withTitle: t("취소", "Cancel"))
         guard alert.runModal() == .alertFirstButtonReturn else { return }
         perform(t("폰트 삭제 중…", "Removing fonts…")) {
-            let recovery=LibraryPaths.live.root.appendingPathComponent("Removed")
+            let recovery=self.dataRoot.appendingPathComponent("Removed")
             try FileManager.default.createDirectory(at:recovery,withIntermediateDirectories:true)
             try await FontBackup.create(files:self.selectedFonts.filter{$0.canManage}.map(\.file),destination:recovery.appendingPathComponent(UUID().uuidString+".zip"))
             do { for key in keys { try await self.repository.trash(key) } }
@@ -253,6 +278,8 @@ struct DownloadRequest: Identifiable { let id = UUID(); let candidates: [Downloa
         }
     }
     func toggleFavorites() {
-        for face in selectedFonts { if favorites.contains(face.id) { favorites.remove(face.id) } else { favorites.insert(face.id) } }
+        var updated=personal
+        for face in selectedFonts {var entry=updated.annotations[face.id] ?? FontAnnotation();entry.favorite.toggle();updated.annotations[face.id]=entry}
+        savePersonal(updated)
     }
 }

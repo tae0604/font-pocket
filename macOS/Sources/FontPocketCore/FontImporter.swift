@@ -1,6 +1,9 @@
 import Foundation
 
 public enum ArchivePolicy {
+    public static let maximumCompressed=1024*1024*1024
+    public static let maximumExpanded=2*1024*1024*1024
+    public static let maximumEntries=10000
     public static func safePath(_ path: String) -> Bool {
         !path.isEmpty && !path.hasPrefix("/") && !path.contains("\\") && !path.contains(":") &&
         !path.contains("\0") && !path.contains("\n") && !path.contains("\r") &&
@@ -18,7 +21,7 @@ public enum ArchivePolicy {
             guard p >= 0 && p + 4 <= data.count else { throw fail() }
             return Int(data[p]) | Int(data[p+1]) << 8 | Int(data[p+2]) << 16 | Int(data[p+3]) << 24
         }
-        guard data.count >= 22 && data.count <= 200 * 1024 * 1024 else { throw fail() }
+        guard data.count >= 22 && data.count <= maximumCompressed else { throw fail() }
         let lower = max(0, data.count - 65557)
         guard let end = stride(from: data.count - 22, through: lower, by: -1).first(where: {
             (try? u32($0)) == 0x06054b50 &&
@@ -26,7 +29,7 @@ public enum ArchivePolicy {
         }) else { throw fail() }
         let count = try u16(end+10), directorySize = try u32(end+12), offset = try u32(end+16)
         guard try u16(end+4) == 0, try u16(end+6) == 0, try u16(end+8) == count,
-              count > 0 && count <= 2048, offset + directorySize == end else { throw fail() }
+              count > 0 && count <= maximumEntries, offset + directorySize == end else { throw fail() }
         var position = offset, total = 0, seen = Set<String>()
         for _ in 0..<count {
             guard try u32(position) == 0x02014b50 else { throw fail() }
@@ -34,12 +37,12 @@ public enum ArchivePolicy {
             let nameLength = try u16(position+28), extraLength = try u16(position+30), commentLength = try u16(position+32)
             let attributes = try u32(position+38), local = try u32(position+42)
             let next = position+46+nameLength+extraLength+commentLength
-            guard next <= end, flags & 1 == 0, method == 0 || method == 8, bytes <= 150*1024*1024,
+            guard next <= end, flags & 1 == 0, method == 0 || method == 8, bytes <= 512*1024*1024,
                   compressed > 0 || bytes == 0, bytes <= max(compressed,1)*500,
                   (attributes >> 16) & 0xf000 != 0xa000 else { throw fail() }
             guard let name = String(data: data.subdata(in: position+46..<position+46+nameLength), encoding: .utf8), safePath(name),
                   seen.insert(name.precomposedStringWithCanonicalMapping.lowercased()).inserted else { throw fail() }
-            total += bytes; guard total <= 512*1024*1024 else { throw fail() }
+            total += bytes; guard total <= maximumExpanded else { throw fail() }
             var extra = position+46+nameLength
             let extraEnd = extra+extraLength
             while extra < extraEnd {
@@ -84,6 +87,7 @@ public actor FontImporter {
                 let file = try await converter?(file,workspace) ?? file
                 let digest = try FontReader.hash(file)
                 if !seen.insert(digest).inserted { continue }
+                guard seen.count<=ArchivePolicy.maximumEntries else{throw PocketError("Import up to 10,000 font files at once.")}
                 // Own a copy so originals can be moved without breaking the installation queue.
                 let copy = workspace.appendingPathComponent(digest + "." + file.pathExtension.lowercased())
                 if !FileManager.default.fileExists(atPath: copy.path) { try FileManager.default.copyItem(at: file, to: copy) }
@@ -102,7 +106,7 @@ public actor FontImporter {
         }
         if url.pathExtension.lowercased() == "zip" {
             let size = try url.resourceValues(forKeys: [.fileSizeKey]).fileSize ?? 0
-            guard size <= 200*1024*1024 else { throw PocketError("ZIP files must be under 200 MB.") }
+            guard size <= ArchivePolicy.maximumCompressed else { throw PocketError("ZIP files must be under 1 GB.") }
             try ArchivePolicy.validate(Data(contentsOf: url, options: .mappedIfSafe))
             let target = workspace.appendingPathComponent(UUID().uuidString, isDirectory: true)
             try FileManager.default.createDirectory(at: target, withIntermediateDirectories: true)
@@ -116,11 +120,11 @@ public actor FontImporter {
                 let destination = workspace.appendingPathComponent(UUID().uuidString + "." + file.pathExtension)
                 try FileManager.default.copyItem(at: file, to: destination); copies.append(destination)
             }
-            guard !copies.isEmpty else { throw PocketError("No TTF, OTF, TTC or OTC fonts were found in this ZIP.") }
+            guard !copies.isEmpty else { throw PocketError("No supported font files were found in this ZIP.") }
             return copies
         }
         guard Self.supported.contains(url.pathExtension.lowercased()) else {
-            throw PocketError("Use TTF, OTF, TTC, OTC, ZIP files or folders. Web fonts need desktop-font downloads.")
+            throw PocketError("Use TTF, OTF, TTC, OTC, WOFF, WOFF2, SFNT, ZIP files or folders.")
         }
         return [url]
     }
@@ -133,7 +137,7 @@ public actor FontImporter {
             if values.isSymbolicLink == true { enumerator.skipDescendants(); continue }
             if file.pathComponents.contains("__MACOSX") { enumerator.skipDescendants(); continue }
             if values.isRegularFile == true && (Self.supported.contains(file.pathExtension.lowercased()) || includeArchives && file.pathExtension.lowercased()=="zip") { result.append(file) }
-            guard result.count <= 2048 else { throw PocketError("Import up to 2,048 font files at a time.") }
+            guard result.count <= ArchivePolicy.maximumEntries else { throw PocketError("Import up to 10,000 font files at a time.") }
         }
         return result.sorted { $0.path < $1.path }
     }
@@ -156,6 +160,7 @@ public enum FontBackup {
         }
         _ = try await ProcessRunner.run("/usr/bin/ditto", ["-c", "-k", "--keepParent", folder.path, temporaryZIP.path])
         try Task.checkCancellation()
+        try ArchivePolicy.validate(Data(contentsOf:temporaryZIP,options:.mappedIfSafe))
         // Same directory / filesystem: replacement is atomic and preserves existing backups on cancellation.
         if fm.fileExists(atPath: destination.path) { _ = try fm.replaceItemAt(destination, withItemAt: temporaryZIP) }
         else { try fm.moveItem(at: temporaryZIP, to: destination) }

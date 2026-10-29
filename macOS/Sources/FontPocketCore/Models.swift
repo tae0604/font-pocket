@@ -20,12 +20,18 @@ public struct FontFace: Identifiable, Hashable, Sendable {
     public let bytes: Int64
     public let state: FontState
     public let managedKey: String?
+    public let version:String
+    public let weightValue:Double
+    public let variable:Bool
+    public let scripts:Set<String>
     public var title: String { family + " " + style }
     public var canManage: Bool { managedKey != nil }
+    public var canAdopt: Bool { state == .external && file.standardizedFileURL.deletingLastPathComponent() == LibraryPaths.live.fonts.standardizedFileURL && file.resolvingSymlinksInPath() == file.standardizedFileURL }
     public init(id: String, file: URL, family: String, style: String, postScript: String, format: String,
-                bytes: Int64, state: FontState, managedKey: String? = nil) {
+                bytes: Int64, state: FontState, managedKey: String? = nil,version:String="",weight:Double=0,variable:Bool=false,scripts:Set<String>=[]) {
         self.id = id; self.file = file; self.family = family; self.style = style; self.postScript = postScript
         self.format = format; self.bytes = bytes; self.state = state; self.managedKey = managedKey
+        self.version=version;weightValue=weight;self.variable=variable;self.scripts=scripts
     }
     public func previewFont(size: Double) -> CTFont {
         let descriptors = CTFontManagerCreateFontDescriptorsFromURL(file as CFURL) as? [CTFontDescriptor] ?? []
@@ -48,7 +54,7 @@ public enum FontReader {
     public static func faces(_ file: URL, state: FontState = .available, managedKey: String? = nil) throws -> [FontFace] {
         let values = try file.resourceValues(forKeys: [.isRegularFileKey, .isSymbolicLinkKey, .fileSizeKey])
         guard values.isRegularFile == true, values.isSymbolicLink != true,
-              let bytes = values.fileSize, bytes >= 12, bytes <= 150 * 1024 * 1024 else {
+              let bytes = values.fileSize, bytes >= 12, bytes <= 512 * 1024 * 1024 else {
             throw PocketError("Invalid font file: \(file.lastPathComponent)")
         }
         let handle = try FileHandle(forReadingFrom: file); defer { try? handle.close() }
@@ -60,9 +66,14 @@ public enum FontReader {
         return descriptors.map { descriptor in
             let font = CTFontCreateWithFontDescriptor(descriptor, 16, nil)
             let name = CTFontCopyPostScriptName(font) as String
+            let traits=CTFontCopyTraits(font) as NSDictionary
+            let charset=CTFontCopyCharacterSet(font)
+            let scripts=Set(FontAnalysis.ranges.filter{entry in entry.1.contains{CFCharacterSetIsLongCharacterMember(charset,$0)}}.map(\.0))
             return FontFace(id: (managedKey ?? file.standardizedFileURL.path) + "|" + name, file: file,
                             family: CTFontCopyFamilyName(font) as String, style: CTFontCopyName(font, kCTFontStyleNameKey) as String? ?? "Regular",
-                            postScript: name, format: file.pathExtension.uppercased(), bytes: Int64(bytes), state: state, managedKey: managedKey)
+                            postScript: name, format: file.pathExtension.uppercased(), bytes: Int64(bytes), state: state, managedKey: managedKey,
+                            version:CTFontCopyName(font,kCTFontVersionNameKey) as String? ?? "",weight:traits[kCTFontWeightTrait] as? Double ?? 0,
+                            variable:!(CTFontCopyVariationAxes(font) as? [Any] ?? []).isEmpty,scripts:scripts)
         }
     }
 }

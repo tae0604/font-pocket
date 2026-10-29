@@ -5,6 +5,7 @@ import FontPocketCore
 @MainActor enum MacUpdates{
     struct Asset:Decodable{let name:String;let browser_download_url:URL;let size:Int}
     struct Release:Decodable{let tag_name:String;let prerelease:Bool;let draft:Bool;let assets:[Asset]}
+    static func version(_ asset:Asset)->String?{let pattern="(?i)FontPocket-macOS-([0-9]+(?:\\.[0-9]+)+)-universal\\.zip";guard let regex=try? NSRegularExpression(pattern:pattern),let match=regex.firstMatch(in:asset.name,range:NSRange(asset.name.startIndex...,in:asset.name)),let range=Range(match.range(at:1),in:asset.name) else{return nil};return String(asset.name[range])}
     static func latest() async throws -> (Release,Asset,Asset)?{
         let releases=try JSONDecoder().decode([Release].self,from:await HTTPClient.get(URL(string:"https://api.github.com/repos/tae0604/font-pocket/releases?per_page=30")!))
         for release in releases where !release.draft && !release.prerelease{
@@ -12,11 +13,15 @@ import FontPocketCore
         };return nil
     }
     static func check() async throws -> String{
-        guard let (release,_,_)=try await latest() else{return "macOS 정식 업데이트가 아직 없습니다. / No stable macOS release is available yet."}
+        guard let (release,asset,_)=try await latest() else{return "macOS 정식 업데이트가 아직 없습니다. / No stable macOS release is available yet."}
+        let current=Bundle.main.object(forInfoDictionaryKey:"CFBundleShortVersionString") as? String ?? "0.2.0"
+        if let available=version(asset),available.compare(current,options:.numeric) != .orderedDescending{return "최신 버전입니다. / Up to date. macOS \(current)"}
         return "macOS: \(release.tag_name) · https://github.com/tae0604/font-pocket/releases"
     }
     static func installLatest() async throws{
         guard let (release,asset,sidecar)=try await latest() else{throw PocketError("No stable macOS release with a SHA-256 checksum is available.")}
+        let current=Bundle.main.object(forInfoDictionaryKey:"CFBundleShortVersionString") as? String ?? "0.2.0"
+        guard let available=version(asset),available.compare(current,options:.numeric) == .orderedDescending else{throw PocketError("이미 최신 버전입니다. / Already up to date.")}
         guard [asset,sidecar].allSatisfy({$0.browser_download_url.host=="github.com" && $0.browser_download_url.path.hasPrefix("/tae0604/font-pocket/releases/download/")}) else{throw PocketError("Untrusted update source")}
         let alert=NSAlert();alert.messageText="Font Pocket \(release.tag_name)";alert.informativeText="업데이트를 다운로드·검증한 뒤 앱을 교체하고 다시 시작할까요? / Download, verify, install and restart?";alert.addButton(withTitle:"업데이트 / Update");alert.addButton(withTitle:"취소 / Cancel");guard alert.runModal() == .alertFirstButtonReturn else{return}
         let bytes=try await HTTPClient.get(asset.browser_download_url,maximum:200*1024*1024)
@@ -28,14 +33,14 @@ import FontPocketCore
         try ArchivePolicy.validate(bytes);_ = try await ProcessRunner.run("/usr/bin/unzip",["-qq",zip.path,"-d",work.path])
         let candidate=work.appendingPathComponent("Font Pocket.app")
         _ = try await ProcessRunner.run("/usr/bin/codesign",["--verify","--deep","--strict",candidate.path])
-        guard let info=Bundle(url:candidate),info.bundleIdentifier=="io.github.tae0604.font-pocket" else{throw PocketError("Unexpected update app identity")}
+        guard let info=Bundle(url:candidate),info.bundleIdentifier=="io.github.tae0604.font-pocket",info.object(forInfoDictionaryKey:"CFBundleShortVersionString") as? String==available else{throw PocketError("Unexpected update app identity or version")}
         let target=Bundle.main.bundleURL
         guard target.pathExtension=="app",FileManager.default.isWritableFile(atPath:target.deletingLastPathComponent().path) else{NSWorkspace.shared.activateFileViewerSelecting([candidate]);return}
         let script=work.appendingPathComponent("install.sh")
         let body="""
         #!/bin/sh
         while kill -0 "$1" 2>/dev/null; do sleep 1; done
-        old="$2.previous"
+        old="$2.previous.$1"
         if [ -e "$old" ]; then exit 1; fi
         /bin/mv "$2" "$old" || exit 1
         if /usr/bin/ditto "$3" "$2" && /usr/bin/codesign --verify --deep --strict "$2"; then

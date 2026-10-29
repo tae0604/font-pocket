@@ -22,6 +22,8 @@ public struct FontCollection: Identifiable, Codable, Equatable, Sendable {
             case "enabled","활성": return font.state == .enabled || font.state == .external
             case "disabled","비활성": return font.state == .disabled
             case "variable","가변": return font.isVariable
+            case "static","고정": return !font.isVariable
+            case "favorite","즐겨찾기": return annotation.favorite
             default: return (font.title + " " + annotation.note + " " + annotation.tags.joined(separator: " ")).localizedCaseInsensitiveContains(term)
             }
         }
@@ -31,6 +33,11 @@ public struct PersonalDocument: Codable, Equatable, Sendable {
     public var annotations: [String: FontAnnotation] = [:]
     public var collections: [FontCollection] = []
     public init() {}
+    public mutating func remap(_ old:String,to new:String){
+        guard old != new else{return}
+        if let entry=annotations.removeValue(forKey:old),annotations[new]==nil{annotations[new]=entry}
+        for index in collections.indices{if collections[index].members.remove(old) != nil{collections[index].members.insert(new)}}
+    }
 }
 public actor PersonalLibrary {
     public let root: URL

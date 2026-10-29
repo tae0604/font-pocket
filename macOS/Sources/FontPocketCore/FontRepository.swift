@@ -72,8 +72,46 @@ public actor FontRepository {
     private func persist() throws {
         try JSONEncoder().encode(records).write(to: paths.catalog, options: .atomic)
     }
+    /// Take ownership only of a regular file immediately inside this user's font folder.
+    /// Keep the original outside the watched folder before changing its registration.
+    public func adopt(_ source: URL) throws -> [FontFace] {
+        let source = source.standardizedFileURL
+        guard source.deletingLastPathComponent() == paths.fonts.standardizedFileURL,
+              source.resolvingSymlinksInPath() == source,
+              FontReader.extensions.contains(source.pathExtension.lowercased()) else {
+            throw PocketError("Only regular fonts in the current user's Fonts folder can be managed.")
+        }
+        _ = try FontReader.faces(source)
+        let hash = try FontReader.hash(source)
+        guard !records.contains(where: { $0.key == hash }) else { throw PocketError("This font is already managed.") }
+        let backup = paths.root.appendingPathComponent("Originals")
+        try fm.createDirectory(at: backup, withIntermediateDirectories: true)
+        let original = backup.appendingPathComponent(hash + "." + source.pathExtension.lowercased())
+        if !fm.fileExists(atPath: original.path) { try fm.copyItem(at: source, to: original) }
+        guard try FontReader.hash(original) == hash else { throw PocketError("Original backup integrity check failed") }
+        try Task.checkCancellation()
+        try registration.unregister(source)
+        do {
+            try fm.removeItem(at: source)
+            _ = try install(original)
+            return try FontReader.faces(paths.fonts.appendingPathComponent("FontPocket-"+hash+"."+source.pathExtension.lowercased()),state:.enabled,managedKey:hash)
+        } catch {
+            if !fm.fileExists(atPath: source.path) { try? fm.copyItem(at: original, to: source) }
+            try? registration.register(source)
+            throw error
+        }
+    }
     public func snapshot() throws -> [(OwnedFont,URL)] {
         try records.map { record in let (_,checked,file)=try owned(record.key);return (checked,file) }
+    }
+    public func backupSnapshot() throws -> [(OwnedFont,URL)] {
+        var result=try snapshot(),known=Set(records.map(\.key))
+        for file in try fm.contentsOfDirectory(at:paths.fonts,includingPropertiesForKeys:nil) where FontReader.extensions.contains(file.pathExtension.lowercased()){
+            try Task.checkCancellation();_ = try FontReader.faces(file)
+            let hash=try FontReader.hash(file)
+            if known.insert(hash).inserted{result.append((OwnedFont(key:hash,filename:"FontPocket-"+hash+"."+file.pathExtension.lowercased(),enabled:true),file))}
+        }
+        return result
     }
     public func switchVersion(_ file:URL,postScript:String) throws {
         let previously=try library(includeSystem:false).filter{$0.postScript==postScript && $0.state == .enabled}.compactMap(\.managedKey)

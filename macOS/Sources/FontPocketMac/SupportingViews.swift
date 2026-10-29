@@ -58,9 +58,14 @@ struct InstallView: View {
                 Picker(model.t("형식","Format"),selection:$model.importFormat){Text("TTF").tag("TTF");Text("OTF").tag("OTF");Text("TTF + OTF").tag("ALL")}.frame(width:170)
                 Toggle("TTC",isOn:$model.includeTTC)
                 Button(model.t("파일·ZIP·폴더 추가", "Add files, ZIP or folder")) { model.openFiles() }.disabled(model.busy)
+                Spacer()
+            }
+            HStack{
+                Picker(model.t("종류","Kind"),selection:$model.importKind){Text(model.t("전체","All")).tag("all");Text(model.t("고정","Static")).tag("static");Text(model.t("가변","Variable")).tag("variable")}.frame(width:190)
                 Button(model.t("전체 선택", "Select all")) { model.checked = Set(model.queue.map(\.id)) }.disabled(model.busy)
                 Button(model.t("선택 해제", "Clear checks")) { model.checked = [] }.disabled(model.busy)
                 Spacer()
+                Button(model.t("선택 제거","Remove selected")){let ids=model.queueSelection;model.queue.removeAll{ids.contains($0.id)};model.checked.subtract(ids);model.queueSelection=[]}.disabled(model.busy || model.queueSelection.isEmpty)
                 Button(model.t("대기열 비우기", "Clear queue")) { model.queue = []; model.checked = []; model.queueSelection = [] }.disabled(model.busy)
             }
             Table(model.queue, selection: $model.queueSelection) {
@@ -85,8 +90,9 @@ struct InstallView: View {
         }
         .sheet(isPresented: $details) { if let face = model.preview { DetailsView(face: face).environmentObject(model) } }
         .sheet(isPresented:$compare){ComparisonView(faces:compareFonts).environmentObject(model)}
-        .onChange(of:model.importFormat){_ in model.checked=Set(model.queue.filter{$0.format==model.importFormat || model.importFormat=="ALL" || model.includeTTC && ["TTC","OTC"].contains($0.format)}.map(\.id))}
-        .onChange(of:model.includeTTC){_ in model.checked=Set(model.queue.filter{$0.format==model.importFormat || model.importFormat=="ALL" || model.includeTTC && ["TTC","OTC"].contains($0.format)}.map(\.id))}
+        .onChange(of:model.importFormat){_ in model.applyImportPreferences()}
+        .onChange(of:model.includeTTC){_ in model.applyImportPreferences()}
+        .onChange(of:model.importKind){_ in model.applyImportPreferences()}
     }
 }
 
@@ -125,21 +131,7 @@ struct DetailsView: View {
     @Environment(\.dismiss) var dismiss
     let face: FontFace
     var body: some View { AdvancedDetailsView(face:face).environmentObject(model) }
-    private var originalBody: some View {
-        VStack(alignment: .leading, spacing: 18) {
-            HStack {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(face.family).font(.title2.bold())
-                    Text(face.style + " · " + face.format + " · " + ByteCountFormatter.string(fromByteCount: face.bytes, countStyle: .file)).foregroundStyle(.secondary)
-                }
-                Spacer(); Button(model.t("닫기", "Done")) { dismiss() }.keyboardShortcut(.cancelAction)
-            }
-            PreviewPane(face: face) { EmptyView() }.frame(maxHeight: .infinity)
-            LabeledContent("PostScript", value: face.postScript).textSelection(.enabled)
-            Text(face.file.path).font(.caption).foregroundStyle(.secondary).textSelection(.enabled)
-            Button(model.t("Finder에서 보기", "Show in Finder")) { NSWorkspace.shared.activateFileViewerSelecting([face.file]) }
-        }.padding(24).frame(width: 800, height: 580)
-    }
+
 }
 
 struct ComparisonView: View {
@@ -196,11 +188,11 @@ struct SettingsView: View {
                     }
                 }
                 Section(model.t("폰트 보관", "Font storage")) {
-                    Text(model.t("폰트는 현재 사용자 계정에 설치됩니다. 사용 중지·삭제는 Font Pocket이 설치한 폰트만 지원합니다.", "Fonts are installed for the current user. Only fonts installed by Font Pocket can be disabled or deleted here.")).font(.callout).foregroundStyle(.secondary)
+                    Text(model.t("폰트는 현재 사용자 계정에 설치됩니다. 기존 사용자 폰트는 관리 메뉴에서 가져올 수 있습니다. 시스템 폰트는 보호됩니다.", "Fonts are installed for the current user. Existing user fonts can be adopted in Manage. System fonts remain protected.")).font(.callout).foregroundStyle(.secondary)
                 }
                 Section {
                     Link(model.t("업데이트·다운로드 확인", "Check releases and downloads"), destination: URL(string: "https://github.com/tae0604/font-pocket/releases")!)
-                    Text("Font Pocket for macOS · 0.1.0 Preview").font(.caption).foregroundStyle(.secondary)
+                    Text("Font Pocket for macOS · 0.2.0").font(.caption).foregroundStyle(.secondary)
                 }
             }.formStyle(.grouped)
             HStack {
