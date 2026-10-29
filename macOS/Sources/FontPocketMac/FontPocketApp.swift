@@ -1,0 +1,112 @@
+import SwiftUI
+import AppKit
+
+@main @MainActor struct FontPocketApp: App {
+    @NSApplicationDelegateAdaptor(AppDelegate.self) private var delegate
+    @StateObject private var model: AppModel
+    init() {
+        do { let initialModel = try AppModel(); _model = StateObject(wrappedValue: initialModel) }
+        catch {
+            // Show a useful recovery error instead of silently replacing a damaged catalog.
+            let alert = NSAlert(); alert.messageText = "Font Pocket"; alert.informativeText = error.localizedDescription
+            alert.runModal(); exit(1)
+        }
+    }
+    var body: some Scene {
+        WindowGroup("Font Pocket", id: "main") {
+            MainView().environmentObject(model)
+                .modifier(SmokeAccessibility(model: model))
+                .frame(minWidth: 960, minHeight: 680)
+                .background(WindowHook(delegate: delegate, model: model))
+                .onOpenURL { model.addFiles([$0]) }
+                .task {
+                    delegate.model = model
+                    if ProcessInfo.processInfo.arguments.contains("--smoke-test") { await SmokeTest.run(model) }
+                    else {
+                        model.refresh();delegate.enableSearch(model)
+                        if model.automaticUpdates,Date().timeIntervalSince(UserDefaults.standard.object(forKey:"lastUpdateCheck") as? Date ?? .distantPast)>86400{
+                            Task{do{let message=try await MacUpdates.check();UserDefaults.standard.set(Date(),forKey:"lastUpdateCheck");model.record(message)}catch{model.record(error.localizedDescription)}}
+                        }
+                    }
+                }
+        }
+        .defaultSize(width: 1180, height: 820)
+        .commands {
+            CommandGroup(replacing: .newItem) {
+                Button(model.t("폰트 추가…", "Add Fonts…")) { model.openFiles() }.keyboardShortcut("o").disabled(model.busy)
+            }
+            CommandGroup(after:.newItem){Button(model.t("빠른 검색","Quick search")){model.quickSearch=true}.keyboardShortcut("k");Button(model.t("라이브러리 도구","Library tools")){model.tools=true}.keyboardShortcut("l",modifiers:[.command,.shift])}
+        }
+        Settings { SettingsView().environmentObject(model).frame(width: 480, height: 380) }
+    }
+}
+
+struct SmokeAccessibility: ViewModifier {
+    @ObservedObject var model: AppModel
+    @ViewBuilder func body(content: Content) -> some View {
+        if ProcessInfo.processInfo.environment["FONTPOCKET_MAC_TEST_ROOT"] != nil {
+            content.environment(\.pocketTransparencyOverride, model.testReduceTransparency)
+                .transaction { if model.testReduceMotion { $0.disablesAnimations = true } }
+                .preferredColorScheme(model.testAppearance)
+        } else { content }
+    }
+}
+
+@MainActor final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
+    private var shortcut:GlobalSearchShortcut?
+    func enableSearch(_ model:AppModel){if shortcut==nil{shortcut=GlobalSearchShortcut(model:model)}}
+    weak var model: AppModel?
+    private var exiting = false
+    func applicationDidFinishLaunching(_ notification: Notification) { NSApp.setActivationPolicy(.regular); NSApp.activate(ignoringOtherApps: true) }
+    func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { true }
+    private func confirm(_ model: AppModel) -> Bool {
+        let alert = NSAlert()
+        alert.messageText = model.t("작업이 진행 중입니다", "A task is in progress")
+        alert.informativeText = model.taskName + "\n\n" + model.t("작업을 중지하고 종료할까요? 현재 파일 처리를 정리한 뒤 종료합니다.", "Stop the task and quit? The current file operation will be cleaned up first.")
+        alert.addButton(withTitle: model.t("계속 사용", "Keep Working"))
+        alert.addButton(withTitle: model.t("중지하고 종료", "Stop and Quit"))
+        return alert.runModal() == .alertSecondButtonReturn
+    }
+    private func confirmUnsaved(_ model: AppModel) -> Bool {
+        guard model.hasUnsavedLibraryEdits else { return true }
+        let alert=NSAlert()
+        alert.messageText=model.t("저장하지 않은 라이브러리 변경이 있습니다","Library changes have not been saved")
+        alert.informativeText=model.t("편집 중인 내용을 버리고 종료할까요?","Discard the edits and quit?")
+        alert.addButton(withTitle:model.t("계속 편집","Keep Editing"))
+        alert.addButton(withTitle:model.t("버리고 종료","Discard and Quit"))
+        return alert.runModal() == .alertSecondButtonReturn
+    }
+    func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        guard let model else { return .terminateNow }
+        guard confirmUnsaved(model) else{return .terminateCancel}
+        guard model.busy else{model.hasUnsavedLibraryEdits=false;return .terminateNow}
+        if exiting { return .terminateCancel }
+        guard confirm(model) else { return .terminateCancel }
+        model.hasUnsavedLibraryEdits=false
+        exiting = true
+        Task { await model.cancelAndWait(); NSApp.reply(toApplicationShouldTerminate: true) }
+        return .terminateLater
+    }
+    func windowShouldClose(_ sender: NSWindow) -> Bool {
+        guard let model else { return true }
+        guard confirmUnsaved(model) else{return false}
+        guard model.busy else{model.hasUnsavedLibraryEdits=false;return true}
+        guard !exiting, confirm(model) else { return false }
+        model.hasUnsavedLibraryEdits=false
+        exiting = true
+        Task { await model.cancelAndWait(); NSApp.terminate(nil) }
+        return false
+    }
+    func applicationWillTerminate(_ notification: Notification) { model?.cleanup() }
+}
+
+struct WindowHook: NSViewRepresentable {
+    let delegate: AppDelegate
+    let model: AppModel
+    func makeNSView(context: Context) -> NSView {
+        let view = NSView()
+        DispatchQueue.main.async { delegate.model = model; view.window?.delegate = delegate }
+        return view
+    }
+    func updateNSView(_ view: NSView, context: Context) {}
+}

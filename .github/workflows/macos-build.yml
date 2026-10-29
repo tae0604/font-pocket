@@ -1,0 +1,55 @@
+name: Build Font Pocket for macOS
+on:
+  push:
+    branches: [main, 'codex/macos-native']
+    paths: ['macOS/**', '.github/workflows/macos-build.yml']
+  pull_request:
+    paths: ['macOS/**', '.github/workflows/macos-build.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  compatibility:
+    runs-on: macos-14
+    timeout-minutes: 15
+    env:
+      FONTPOCKET_TEST_FONT: ${{ github.workspace }}/outputs/FontPocket/Brand/Fonts/Pretendard-SemiBold.ttf
+      FONTPOCKET_LIVE_CORETEXT_TEST: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - name: Test older macOS native-material fallback
+        working-directory: macOS
+        run: swift test
+  build:
+    runs-on: macos-26
+    timeout-minutes: 25
+    env:
+      FONTPOCKET_TEST_FONT: ${{ github.workspace }}/outputs/FontPocket/Brand/Fonts/Pretendard-SemiBold.ttf
+      FONTPOCKET_LIVE_CORETEXT_TEST: '1'
+      FONTPOCKET_LIVE_DOWNLOAD_TEST: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - name: Test font import, activation, rollback and backup
+        working-directory: macOS
+        run: swift test
+      - name: Build Apple Silicon and Intel app
+        run: bash macOS/build.sh
+      - name: Launch native app and render Korean and English windows
+        env:
+          FONTPOCKET_MAC_TEST_ROOT: ${{ runner.temp }}/FontPocket-Smoke
+          FONTPOCKET_MAC_SMOKE_OUTPUT: ${{ github.workspace }}/macOS/dist/screenshots
+        timeout-minutes: 5
+        run: '"macOS/dist/Font Pocket.app/Contents/MacOS/FontPocket" --smoke-test'
+      - name: Upload macOS preview
+        uses: actions/upload-artifact@v4
+        with:
+          name: FontPocket-macOS-0.2.2-universal
+          path: |
+            macOS/dist/*.zip
+            macOS/dist/*.sha256
+            macOS/dist/screenshots/*.png
+          if-no-files-found: error
+          retention-days: 14
+      - name: Export public preview for visual review
+        if: github.ref == 'refs/heads/codex/macos-native'
+        run: python3 macOS/export-review.py
