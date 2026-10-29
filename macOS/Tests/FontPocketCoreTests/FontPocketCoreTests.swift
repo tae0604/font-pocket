@@ -38,6 +38,7 @@ final class FontPocketCoreTests: XCTestCase {
         let file = try fixture(), registration = CoreTextRegistration()
         try registration.register(file)
         defer { try? registration.unregister(file) }
+        try registration.register(file)
         try registration.unregister(file)
     }
     func testTraversalPathsRejected() {

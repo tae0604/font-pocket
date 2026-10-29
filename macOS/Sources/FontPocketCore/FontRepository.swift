@@ -11,7 +11,20 @@ public struct CoreTextRegistration: FontRegistration {
     public func register(_ url: URL) throws {
         var error: Unmanaged<CFError>?
         if !CTFontManagerRegisterFontsForURL(url as CFURL, .user, &error) {
-            if let error { throw error.takeRetainedValue() as Error }
+            if let error {
+                let value = error.takeRetainedValue()
+                // ~/Library/Fonts is also watched by macOS. Treat a registration race
+                // as success only when EVERY face resolves to this exact copied file.
+                if CFErrorGetCode(value) == Int(CTFontManagerError.alreadyRegistered.rawValue),
+                   let descriptors = CTFontManagerCreateFontDescriptorsFromURL(url as CFURL) as? [CTFontDescriptor], !descriptors.isEmpty,
+                   descriptors.allSatisfy({ descriptor in
+                       guard let name = CTFontDescriptorCopyAttribute(descriptor, kCTFontNameAttribute) as? String else { return false }
+                       let font = CTFontCreateWithName(name as CFString, 12, nil)
+                       let registered = CTFontCopyAttribute(font, kCTFontURLAttribute) as? URL
+                       return registered?.standardizedFileURL == url.standardizedFileURL
+                   }) { return }
+                throw value as Error
+            }
             throw PocketError("macOS could not enable this font.")
         }
     }

@@ -27,7 +27,7 @@ struct MainView: View {
         .sheet(isPresented: $showSettings) { SettingsView().environmentObject(model).frame(width: 460, height: 320) }
         .sheet(isPresented: $showDetails) { if let face = model.preview { DetailsView(face: face).environmentObject(model) } }
         .sheet(isPresented: $showComparison) { ComparisonView(faces: Array(model.selectedFonts.prefix(4))).environmentObject(model) }
-        .sheet(item: $model.downloadRequest, onDismiss: { model.finishChoices([]) }) { request in DownloadPicker(request: request).environmentObject(model) }
+        .sheet(item: $model.downloadRequest) { request in DownloadPicker(request: request).environmentObject(model).interactiveDismissDisabled() }
         .alert(model.t("작업을 완료하지 못했습니다", "Could not complete the task"), isPresented: Binding(get: { model.error != nil }, set: { if !$0 { model.error = nil } })) {
             Button(model.t("확인", "OK")) { model.error = nil }
         } message: { Text(model.error ?? "") }

@@ -10,6 +10,7 @@ mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 cp "$BIN/FontPocket" "$APP/Contents/MacOS/FontPocket"
 find "$BIN" -maxdepth 1 -name '*.bundle' -exec cp -R '{}' "$APP/Contents/Resources/" \;
 cp Sources/FontPocketMac/Resources/FontPocket-logo.png "$APP/Contents/Resources/FontPocket-logo.png"
+cp LICENSE "$APP/Contents/Resources/LICENSE.txt"
 ICONSET="$(mktemp -d)/FontPocket.iconset"
 mkdir -p "$ICONSET"
 for SIZE in 16 32 128 256 512; do
@@ -47,7 +48,7 @@ PLIST
 # NOT Developer ID signing / notarization and is explicitly labeled as a preview.
 codesign --force --deep --sign - "$APP"
 codesign --verify --deep --strict "$APP"
-lipo -verify_arch arm64 x86_64 "$APP/Contents/MacOS/FontPocket"
+lipo "$APP/Contents/MacOS/FontPocket" -verify_arch arm64 x86_64
 ditto -c -k --sequesterRsrc --keepParent "$APP" "$OUT/FontPocket-macOS-$VERSION-universal.zip"
 shasum -a 256 "$OUT/FontPocket-macOS-$VERSION-universal.zip" > "$OUT/FontPocket-macOS-$VERSION-universal.zip.sha256"
 printf 'Built %s\n' "$APP"
