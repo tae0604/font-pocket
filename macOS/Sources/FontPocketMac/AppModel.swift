@@ -10,23 +10,23 @@ struct DownloadRequest: Identifiable { let id = UUID(); let candidates: [Downloa
 
 @MainActor final class AppModel: ObservableObject {
     @Published var page: Page = .manager
-    @Published var fonts: [FontFace] = []
+    @Published var fonts: [FontFace] = [] {didSet{invalidateFontFilter()}}
     @Published var queue: [FontFace] = []
-    @Published var selection = Set<String>()
+    @Published var selection = Set<String>() {didSet{cachedSelected=nil}}
     @Published var checked = Set<String>()
     @Published var queueSelection = Set<String>()
-    @Published var search = ""
+    @Published var search = "" {didSet{invalidateFontFilter()}}
     @Published var showSystem = false
-    @Published var onlyFavorites = false
-    @Published var personal = PersonalDocument()
-    @Published var activeCollection: UUID?
-    @Published var formatFilter = ""
-    @Published var stateFilter = ""
-    @Published var languageFilter = ""
-    @Published var variableOnly = false {didSet{if variableOnly{fixedOnly=false}}}
-    @Published var fixedOnly = false {didSet{if fixedOnly{variableOnly=false}}}
-    @Published var weightFilter = ""
-    @Published var groupFamilies = false
+    @Published var onlyFavorites = false {didSet{invalidateFontFilter()}}
+    @Published var personal = PersonalDocument() {didSet{invalidateFontFilter()}}
+    @Published var activeCollection: UUID? {didSet{invalidateFontFilter()}}
+    @Published var formatFilter = "" {didSet{invalidateFontFilter()}}
+    @Published var stateFilter = "" {didSet{invalidateFontFilter()}}
+    @Published var languageFilter = "" {didSet{invalidateFontFilter()}}
+    @Published var variableOnly = false {didSet{if variableOnly{fixedOnly=false};invalidateFontFilter()}}
+    @Published var fixedOnly = false {didSet{if fixedOnly{variableOnly=false};invalidateFontFilter()}}
+    @Published var weightFilter = "" {didSet{invalidateFontFilter()}}
+    @Published var groupFamilies = false {didSet{invalidateFontFilter()}}
     @Published var importFormat = "TTF"
     @Published var importKind = "all"
     @Published var includeTTC = false
@@ -57,6 +57,9 @@ struct DownloadRequest: Identifiable { let id = UUID(); let candidates: [Downloa
     let workspace: URL
     let repository: FontRepository
     let importer: FontImporter
+    private var cachedVisible:[FontFace]?
+    private var cachedSelected:[FontFace]?
+    private func invalidateFontFilter(){cachedVisible=nil;cachedSelected=nil}
     private var job: Task<Void, Never>?
     private var chooser: CheckedContinuation<[DownloadCandidate], Never>?
     private var pendingFiles: [URL] = []
@@ -77,6 +80,7 @@ struct DownloadRequest: Identifiable { let id = UUID(); let candidates: [Downloa
     }
     func t(_ ko: String, _ en: String) -> String { language == "ko" ? ko : en }
     var visibleFonts: [FontFace] {
+        if let cachedVisible{return cachedVisible}
         let filtered = fonts.filter { face in
             let annotation=personal.annotations[face.id] ?? FontAnnotation()
             let terms=face.title+" "+face.version+" "+face.format+" "+face.file.lastPathComponent+" "+annotation.note+" "+annotation.tags.joined(separator:" ")
@@ -93,9 +97,11 @@ struct DownloadRequest: Identifiable { let id = UUID(); let candidates: [Downloa
             if !languageFilter.isEmpty && !face.scripts.contains(languageFilter){return false}
             return true
         }
-        return groupFamilies ? filtered.sorted{$0.family==$1.family ? $0.weight < $1.weight : $0.family.localizedStandardCompare($1.family) == .orderedAscending} : filtered
+        let result = groupFamilies ? filtered.sorted{$0.family==$1.family ? $0.weight < $1.weight : $0.family.localizedStandardCompare($1.family) == .orderedAscending} : filtered
+        cachedVisible=result
+        return result
     }
-    var selectedFonts: [FontFace] { visibleFonts.filter { selection.contains($0.id) } }
+    var selectedFonts: [FontFace] {if let cachedSelected{return cachedSelected};let result=visibleFonts.filter{selection.contains($0.id)};cachedSelected=result;return result}
     var selectedQueue: [FontFace] { queue.filter { queueSelection.contains($0.id) } }
     var preview: FontFace? { page == .install ? selectedQueue.first ?? queue.first : selectedFonts.first }
     func record(_ text: String) {

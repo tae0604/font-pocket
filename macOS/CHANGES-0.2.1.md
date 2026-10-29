@@ -8,6 +8,8 @@ The Windows implementation is unchanged. Existing Mac catalog/personal/environme
 | Every character-grid redraw reopens the same font and creates hundreds of CTFonts | Reuse immutable Core Text font sources and a bounded cache of sizes. Reuse metadata while file size/date/inode are unchanged. |
 | File size remains stale after replacing a file at the same URL | Read fresh filesystem attributes instead of Foundation's cached URL resource values. Cache invalidation is regression-tested. |
 | Copying a glyph / changing pages repeatedly filters the whole font | Build a character index once, cache coverage counts, and filter only when the query/range changes, off the UI actor with cancellation. Literal character queries no longer also match hexadecimal labels. |
+| The same list filters and selections run repeatedly for each toolbar/preview redraw | Cache visible and selected results; invalidate on font, personal-data, selection or filter changes. |
+| No selected font opens notes for an unrelated first font | Require an actual preview selection; show the select-a-font prompt otherwise. |
 | Large WOFF reads/zlib conversion block the main actor | Move file reads and WOFF decoding off the UI actor. Check size before reading/copying. Keep only WebKit calls on the UI actor. |
 | Cancelling a version switch can also cancel rollback | Restoration of the original activation state explicitly ignores cancellation; the real cancelled-task case is tested. |
 | A removed managed font cannot be reinstalled because its catalog entry remains | Recreate a missing file from a verified source while preserving its activation state. Refuse to overwrite changed existing files. |

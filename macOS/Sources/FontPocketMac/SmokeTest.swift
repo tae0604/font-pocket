@@ -31,6 +31,14 @@ import FontPocketCore
             guard let installed = model.fonts.first(where: { $0.canManage && $0.state == .enabled }) else { throw NSError(domain: "Installation did not persist", code: 5) }
             guard model.personal.collections.first?.members.contains(installed.id)==true,
                   model.personal.annotations[installed.id]?.note=="Keep after installation" else{throw PocketError("Installation lost personal data")}
+            model.search="Keep after installation"
+            guard model.visibleFonts.contains(where:{$0.id==installed.id}) else{throw PocketError("Note search cache did not update")}
+            model.search="";model.onlyFavorites=true
+            guard !model.visibleFonts.contains(where:{$0.id==installed.id}) else{throw PocketError("Favorite filter retained stale results")}
+            var favoriteEdit=model.personal;favoriteEdit.annotations[installed.id]?.favorite=true
+            model.savePersonal(favoriteEdit);try await wait(model)
+            guard model.visibleFonts.contains(where:{$0.id==installed.id}) else{throw PocketError("Favorite filter cache did not invalidate")}
+            model.onlyFavorites=false
             model.selection = [installed.id]
             model.changeEnabled(false); try await wait(model)
             guard model.fonts.contains(where: { $0.id == installed.id && $0.state == .disabled }) else { throw NSError(domain: "Disable failed", code: 6) }

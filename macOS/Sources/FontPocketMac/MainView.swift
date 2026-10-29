@@ -92,7 +92,7 @@ struct MainView: View {
     private var manager: some View {
         VStack(spacing: 12) {
             HStack {
-                Text(model.t("폰트 \(model.visibleFonts.count)개 · 선택 \(model.selection.count)개", "\(model.visibleFonts.count) \(model.visibleFonts.count == 1 ? "font" : "fonts") · \(model.selection.count) selected")).font(.caption).foregroundStyle(.secondary)
+                Text(model.t("폰트 \(model.visibleFonts.count)개 · 선택 \(model.selectedFonts.count)개", "\(model.visibleFonts.count) \(model.visibleFonts.count == 1 ? "font" : "fonts") · \(model.selectedFonts.count) selected")).font(.caption).foregroundStyle(.secondary)
                 Spacer()
                 if model.page == .backup { Button(model.t("선택한 폰트 백업", "Back up selected fonts")) { model.backupSelected() }.disabled(model.selection.isEmpty || model.busy) }
             }

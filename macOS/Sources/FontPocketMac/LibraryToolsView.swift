@@ -20,7 +20,7 @@ struct LibraryToolsView:View{
     @State private var comparison:[FontFace]=[]
     @State private var compare=false
     @State private var allVersions=false
-    private var face:FontFace?{model.preview ?? model.fonts.first}
+    private var face:FontFace?{model.preview}
     private var visibleVersions:[FontVersion]{allVersions || face==nil ? versions:versions.filter{$0.postScript==face?.postScript}}
     var body:some View{
         VStack(alignment:.leading,spacing:16){
