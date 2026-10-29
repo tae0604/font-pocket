@@ -54,7 +54,11 @@ public enum BackupArchive {
     public static func create(folder: URL, destination: URL, progress: ProgressHandler? = nil) async throws {
         let fm=FileManager.default
         let temporary=destination.deletingLastPathComponent().appendingPathComponent(".FontPocket-\(UUID().uuidString).zip")
-        defer{try? fm.removeItem(at:temporary)}
+        defer {
+            temporary.withUnsafeFileSystemRepresentation { path in
+                if let path { _ = Darwin.unlink(path) }
+            }
+        }
         guard let enumerator=fm.enumerator(at:folder,includingPropertiesForKeys:[.isRegularFileKey,.isSymbolicLinkKey]) else{throw PocketError("Cannot read backup staging folder")}
         var paths=Set<String>()
         let prefix=folder.deletingLastPathComponent().path+"/"
