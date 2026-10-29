@@ -6,6 +6,7 @@ struct LibraryToolsView:View{
     @EnvironmentObject var model:AppModel
     @Environment(\.dismiss) var dismiss
     @State private var document=PersonalDocument()
+    @State private var baseline=PersonalDocument()
     @State private var name=""
     @State private var rule=""
     @State private var versions:[FontVersion]=[]
@@ -23,20 +24,46 @@ struct LibraryToolsView:View{
     private var visibleVersions:[FontVersion]{allVersions || face==nil ? versions:versions.filter{$0.postScript==face?.postScript}}
     var body:some View{
         VStack(alignment:.leading,spacing:16){
-            HStack{Text(model.t("라이브러리 도구","Library tools")).font(.title2.bold());Spacer();Button(model.t("닫기","Done")){dismiss()}.keyboardShortcut(.cancelAction)}
-            TabView(selection:$model.toolsTab){
-                notes.tag("notes").tabItem{Text(model.t("메모·태그","Notes / tags"))}
-                collections.tag("collections").tabItem{Text(model.t("모음","Collections"))}
-                duplicates.tag("duplicates").tabItem{Text(model.t("중복","Duplicates"))}
-                versionView.tag("versions").tabItem{Text(model.t("버전","Versions"))}
-                catalog.tag("catalog").tabItem{Text(model.t("전체 견본","Catalog"))}
-                inspectionView.tag("inspect").tabItem{Text(model.t("검사","Inspect"))}
-                backup.tag("backup").tabItem{Text(model.t("백업·업데이트","Backup / update"))}
-            }
+            HStack{Text(model.t("라이브러리 도구","Library tools")).font(.title2.bold());Spacer();Button(model.t("닫기","Done")){requestClose()}.keyboardShortcut(.cancelAction)}
+            SectionSwitcher(options:[
+                .init(id:"notes",label:model.t("메모·태그","Notes / tags")),
+                .init(id:"collections",label:model.t("모음","Collections")),
+                .init(id:"duplicates",label:model.t("중복","Duplicates")),
+                .init(id:"versions",label:model.t("버전","Versions")),
+                .init(id:"catalog",label:model.t("전체 견본","Catalog")),
+                .init(id:"inspect",label:model.t("검사","Inspect")),
+                .init(id:"backup",label:model.t("백업·업데이트","Backup / update"))
+            ],selection:$model.toolsTab)
+            Group {
+                switch model.toolsTab {
+                case "collections": collections
+                case "duplicates": duplicates
+                case "versions": versionView
+                case "catalog": catalog
+                case "inspect": inspectionView
+                case "backup": backup
+                default: notes
+                }
+            }.frame(maxWidth:.infinity,maxHeight:.infinity)
+
             if model.busy{TaskControls().environmentObject(model)}
         }.padding(22).frame(width:940,height:620)
         .sheet(isPresented:$compare){ComparisonView(faces:comparison).environmentObject(model)}
-        .task{document=model.personal;do{versions=try await model.vault.read()}catch{model.error=error.localizedDescription}}
+        .interactiveDismissDisabled(document != baseline)
+        .onChange(of:document){value in model.hasUnsavedLibraryEdits=value != baseline}
+        .onChange(of:model.personal){value in if document==baseline{baseline=value;document=value}}
+        .onDisappear{model.hasUnsavedLibraryEdits=false}
+        .task{baseline=model.personal;document=model.personal;do{versions=try await model.vault.read()}catch{model.error=error.localizedDescription}}
+    }
+    private func saveDocument(completion:(()->Void)?=nil){
+        model.savePersonal(document,baseline:baseline){baseline=model.personal;document=model.personal;model.hasUnsavedLibraryEdits=false;completion?()}
+    }
+    private func requestClose(){
+        guard document != baseline else{dismiss();return}
+        let alert=NSAlert();alert.messageText=model.t("변경 내용을 저장할까요?","Save library changes?")
+        alert.addButton(withTitle:model.t("저장","Save"));alert.addButton(withTitle:model.t("변경 버리기","Discard"));alert.addButton(withTitle:model.t("취소","Cancel"))
+        alert.buttons.first?.isEnabled = !model.busy
+        switch alert.runModal(){case .alertFirstButtonReturn:if !model.busy{saveDocument{dismiss()}};case .alertSecondButtonReturn:dismiss();default:break}
     }
     private var notes:some View{VStack(alignment:.leading,spacing:14){
         if let face{
@@ -44,19 +71,19 @@ struct LibraryToolsView:View{
             TextEditor(text:Binding(get:{document.annotations[face.id]?.note ?? ""},set:{value in var entry=document.annotations[face.id] ?? FontAnnotation();entry.note=value;document.annotations[face.id]=entry})).frame(minHeight:160).border(Color.secondary.opacity(0.2))
             TextField(model.t("쉼표로 구분한 태그","Tags separated by commas"),text:Binding(get:{document.annotations[face.id]?.tags.joined(separator:", ") ?? ""},set:{value in var entry=document.annotations[face.id] ?? FontAnnotation();entry.tags=value.split(separator:",").map{$0.trimmingCharacters(in:.whitespaces)}.filter{!$0.isEmpty};document.annotations[face.id]=entry})).textFieldStyle(.roundedBorder)
             ForEach(document.collections.filter{$0.rule.isEmpty}){collection in Toggle(collection.name,isOn:Binding(get:{document.collections.first(where:{$0.id==collection.id})?.members.contains(face.id) == true},set:{value in guard let index=document.collections.firstIndex(where:{$0.id==collection.id}) else{return};if value{document.collections[index].members.insert(face.id)}else{document.collections[index].members.remove(face.id)}}))}
-            Button(model.t("저장","Save")){model.savePersonal(document)}.disabled(model.busy)
+            Button(model.t("저장","Save")){saveDocument()}.disabled(model.busy)
         }else{Text(model.t("폰트를 먼저 선택하세요.","Select a font first."))};Spacer()
     }.padding()}
     private var collections:some View{VStack(alignment:.leading,spacing:12){
         HStack{TextField(model.t("모음 이름","Collection name"),text:$name);TextField(model.t("자동 조건 (비우면 일반 모음)","Smart rule (empty for manual collection)"),text:$rule);Button(model.t("추가","Add")){document.collections.append(FontCollection(name:name,rule:rule,members:Set(model.selectedFonts.map(\.id))));name="";rule=""}.disabled(name.trimmingCharacters(in:.whitespaces).isEmpty)}
         Text(model.t("자동 조건 예: 본문;TTF;활성 · 이름·태그·형식·활성·비활성·가변 조건을 ;로 연결합니다.","Smart rules: body;TTF;enabled. Join name/tag, format, enabled/disabled or variable conditions with ;.")).font(.caption).foregroundStyle(.secondary)
-        List{ForEach(document.collections){collection in HStack{VStack(alignment:.leading){TextField(model.t("모음 이름","Name"),text:Binding(get:{document.collections.first(where:{$0.id==collection.id})?.name ?? ""},set:{value in if let i=document.collections.firstIndex(where:{$0.id==collection.id}){document.collections[i].name=value}}));TextField(model.t("자동 조건 · 일반 모음은 비워두세요","Smart rule · leave empty for manual"),text:Binding(get:{document.collections.first(where:{$0.id==collection.id})?.rule ?? ""},set:{value in if let i=document.collections.firstIndex(where:{$0.id==collection.id}){document.collections[i].rule=value}})).font(.caption).foregroundStyle(.secondary)};Spacer();Button(model.t("보기","Show")){model.perform(model.t("모음 저장 중…","Saving collection…")){try await model.personalStore.save(document);model.personal=document;model.activeCollection=collection.id;dismiss()}};Button(model.t("삭제","Delete")){document.collections.removeAll{$0.id==collection.id}}}}}
-        HStack{Button(model.t("저장","Save")){model.savePersonal(document)}.disabled(model.busy);Button(model.t("모든 폰트 보기","Show all fonts")){model.activeCollection=nil;dismiss()};Spacer()}
+        List{ForEach(document.collections){collection in HStack{VStack(alignment:.leading){TextField(model.t("모음 이름","Name"),text:Binding(get:{document.collections.first(where:{$0.id==collection.id})?.name ?? ""},set:{value in if let i=document.collections.firstIndex(where:{$0.id==collection.id}){document.collections[i].name=value}}));TextField(model.t("자동 조건 · 일반 모음은 비워두세요","Smart rule · leave empty for manual"),text:Binding(get:{document.collections.first(where:{$0.id==collection.id})?.rule ?? ""},set:{value in if let i=document.collections.firstIndex(where:{$0.id==collection.id}){document.collections[i].rule=value}})).font(.caption).foregroundStyle(.secondary)};Spacer();Button(model.t("보기","Show")){saveDocument{model.activeCollection=collection.id;dismiss()}};Button(model.t("삭제","Delete")){document.collections.removeAll{$0.id==collection.id}}}}}
+        HStack{Button(model.t("저장","Save")){saveDocument()}.disabled(model.busy);Button(model.t("모든 폰트 보기","Show all fonts")){saveDocument{model.activeCollection=nil;dismiss()}};Spacer()}
     }.padding()}
     private var duplicates:some View{VStack(alignment:.leading){
         HStack{Button(model.t("중복 검색","Find duplicates")){let fonts=model.fonts;model.perform(model.t("중복 검색 중…","Finding duplicates…")){let task=Task.detached{try DuplicateFinder.find(fonts)};groups=try await withTaskCancellationHandler(operation:{try await task.value},onCancel:{task.cancel()});for group in groups{keep[group.id]=group.fonts.first(where:{!$0.canManage})?.id ?? group.fonts[0].id};clean=Set(groups.filter(\.exact).map(\.id))}}.disabled(model.busy);Spacer();Text(model.t("완전 동일 그룹만 기본 선택됩니다.","Only byte-identical groups are selected by default.")).font(.caption)}
         List(groups){group in VStack(alignment:.leading,spacing:8){Toggle(group.exact ? model.t("동일 파일","Identical files"):model.t("동일 스타일 후보 · 직접 확인","Same-style candidates · review manually"),isOn:Binding(get:{clean.contains(group.id)},set:{if $0{clean.insert(group.id)}else{clean.remove(group.id)}}));Picker(model.t("남길 폰트","Keep"),selection:Binding(get:{keep[group.id] ?? group.fonts[0].id},set:{keep[group.id]=$0})){ForEach(group.fonts){font in Text(font.title+" · "+font.format+" · "+font.file.lastPathComponent).tag(font.id)}}}}
-        Button(model.t("복구 백업 후 선택 그룹 정리","Back up and remove selected duplicates")){let remove=groups.filter{clean.contains($0.id)}.flatMap{group in group.fonts.filter{$0.file != group.fonts.first(where:{$0.id==keep[group.id]})?.file && $0.canManage && (group.exact || !["TTC","OTC"].contains($0.format))}};model.cleanDuplicates(remove)}.disabled(model.busy || clean.isEmpty)
+        Button(model.t("복구 백업 후 선택 그룹 정리","Back up and remove selected duplicates")){let remove=DuplicateFinder.deletionCandidates(groups,selected:clean,keep:keep);model.cleanDuplicates(remove)}.disabled(model.busy || clean.isEmpty)
     }.padding()}
     private var versionView:some View{VStack(alignment:.leading,spacing:12){
         Toggle(model.t("모든 보관 버전 표시","Show all archived styles"),isOn:$allVersions).onChange(of:allVersions){_ in versionSelection=[]}

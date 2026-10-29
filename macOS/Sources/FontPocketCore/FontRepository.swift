@@ -94,15 +94,20 @@ public actor FontRepository {
         do {
             try fm.removeItem(at: source)
             _ = try install(original)
-            return try FontReader.faces(paths.fonts.appendingPathComponent("FontPocket-"+hash+"."+source.pathExtension.lowercased()),state:.enabled,managedKey:hash)
         } catch {
             if !fm.fileExists(atPath: source.path) { try? fm.copyItem(at: original, to: source) }
             try? registration.register(source)
             throw error
         }
+        // Ownership is committed. A late cancellation must not recreate a second
+        // active copy of the original alongside the newly managed file.
+        return try FontReader.faces(paths.fonts.appendingPathComponent("FontPocket-"+hash+"."+source.pathExtension.lowercased()),state:.enabled,managedKey:hash,checkCancellation:false)
     }
     public func snapshot() throws -> [(OwnedFont,URL)] {
         try records.map { record in let (_,checked,file)=try owned(record.key);return (checked,file) }
+    }
+    public func managedState(_ key:String)->FontState?{
+        records.first{$0.key==key}.map{$0.enabled ? .enabled:.disabled}
     }
     public func backupSnapshot() throws -> [(OwnedFont,URL)] {
         var result=try snapshot(),known=Set(records.map(\.key))
@@ -114,22 +119,26 @@ public actor FontRepository {
         return result
     }
     public func switchVersion(_ file:URL,postScript:String) throws {
-        let previously=try library(includeSystem:false).filter{$0.postScript==postScript && $0.state == .enabled}.compactMap(\.managedKey)
+        guard try FontReader.faces(file).contains(where:{$0.postScript==postScript}) else{throw PocketError("The selected style is not in this version file.")}
+        let previously=try records.filter(\.enabled).filter{record in try FontReader.faces(location(record)).contains{$0.postScript==postScript}}.map(\.key)
         let hash=try FontReader.hash(file)
         if previously.contains(hash){return}
+        let alreadyStored=records.contains{$0.key==hash}
         do{
             for key in Set(previously){try setEnabled(key,enabled:false)}
-            if records.contains(where:{$0.key==hash}){try setEnabled(hash,enabled:true)}else{_ = try install(file)}
+            _ = try install(file)
+            if alreadyStored { try setEnabled(hash,enabled:true) }
         }catch{
-            for key in Set(previously){try? setEnabled(key,enabled:true)}
+            // Rollback is cleanup, so it must run even when the parent task has
+            // already been cancelled by Stop / Stop and Quit.
+            for key in Set(previously){try? updateEnabled(key,enabled:true,checkCancellation:false)}
             throw error
         }
     }
-    private func owned(_ key: String) throws -> (Int, OwnedFont, URL) {
+    private func owned(_ key: String, checkCancellation: Bool = true) throws -> (Int, OwnedFont, URL) {
         guard let index = records.firstIndex(where: { $0.key == key }) else { throw PocketError("This font is read-only.") }
         let record = records[index], url = location(record)
-        guard try FontReader.hash(url) == record.key else { throw PocketError("The font changed outside Font Pocket. Refresh before continuing.") }
-        _ = try FontReader.faces(url)
+        guard try FontReader.hash(url,checkCancellation:checkCancellation) == record.key else { throw PocketError("The font changed outside Font Pocket. Refresh before continuing.") }
         return (index, record, url)
     }
     public func library(includeSystem: Bool) throws -> [FontFace] {
@@ -152,38 +161,46 @@ public actor FontRepository {
         }
         return result.sorted { $0.title.localizedStandardCompare($1.title) == .orderedAscending }
     }
-    @discardableResult public func install(_ source: URL) throws -> Bool {
+    @discardableResult public func install(_ source: URL, enabled: Bool = true) throws -> Bool {
         try Task.checkCancellation()
         _ = try FontReader.faces(source)
         let key = try FontReader.hash(source)
-        if records.contains(where: { $0.key == key }) { return false }
         let ext = source.pathExtension.lowercased()
         guard FontReader.extensions.contains(ext) else { throw PocketError("Unsupported font format: \(ext)") }
-        let record = OwnedFont(key: key, filename: "FontPocket-\(key).\(ext)", enabled: true)
+        let existing = records.first { $0.key == key }
+        let record = existing ?? OwnedFont(key: key, filename: "FontPocket-\(key).\(ext)", enabled: enabled)
         let destination = location(record)
+        if existing != nil, fm.fileExists(atPath:destination.path) {
+            _ = try owned(key)
+            return false
+        }
         guard !fm.fileExists(atPath: destination.path) else { throw PocketError("The destination already exists. It was not overwritten.") }
-        let temp = paths.fonts.appendingPathComponent(".FontPocket-\(UUID().uuidString).tmp")
+        let temp = destination.deletingLastPathComponent().appendingPathComponent(".FontPocket-\(UUID().uuidString).tmp")
         defer { try? fm.removeItem(at: temp) }
         try fm.copyItem(at: source, to: temp)
         guard try FontReader.hash(temp) == key else { throw PocketError("The font changed while copying.") }
         try Task.checkCancellation()
         try fm.moveItem(at: temp, to: destination)
-        do { try registration.register(destination) }
+        do { if record.enabled { try registration.register(destination) } }
         catch { try? fm.removeItem(at: destination); throw error }
+        if existing != nil { return true }
         records.append(record)
         do { try persist() }
         catch {
             records.removeLast()
             // If unregistering fails, retain the file: never delete a registered font.
-            do { try registration.unregister(destination); try fm.removeItem(at: destination) }
+            do { if record.enabled { try registration.unregister(destination) }; try fm.removeItem(at: destination) }
             catch { records.append(record); try? persist() }
             throw error
         }
         return true
     }
     public func setEnabled(_ key: String, enabled: Bool) throws {
-        try Task.checkCancellation()
-        let (index, record, source) = try owned(key)
+        try updateEnabled(key,enabled:enabled,checkCancellation:true)
+    }
+    private func updateEnabled(_ key: String, enabled: Bool, checkCancellation: Bool) throws {
+        if checkCancellation { try Task.checkCancellation() }
+        let (index, record, source) = try owned(key,checkCancellation:checkCancellation)
         if record.enabled == enabled { return }
         var updated = record; updated.enabled = enabled
         let destination = location(updated)

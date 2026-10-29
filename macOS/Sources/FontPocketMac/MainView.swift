@@ -63,7 +63,7 @@ struct MainView: View {
             Button { showSettings = true } label: {
                 Label(model.t("설정", "Settings"), systemImage: "gearshape").frame(maxWidth: .infinity, alignment: .leading)
             }.buttonStyle(.plain).padding(.horizontal, 20).padding(.vertical, 12)
-            Text("macOS 0.2.0").font(.caption).foregroundStyle(.secondary).padding(.horizontal, 20).padding(.bottom, 18)
+            Text("macOS 0.2.1").font(.caption).foregroundStyle(.secondary).padding(.horizontal, 20).padding(.bottom, 18)
         }
     }
     private func title(_ page: Page) -> String {

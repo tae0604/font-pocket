@@ -21,9 +21,16 @@ import FontPocketCore
                 try await Task.sleep(nanoseconds: 600_000_000)
                 try await capture(filename, output: output)
             }
+            guard let queued=model.queue.first else{throw PocketError("Missing queued font")}
+            var beforeInstall=PersonalDocument();var queuedNote=FontAnnotation();queuedNote.note="Keep after installation"
+            beforeInstall.annotations[queued.id]=queuedNote
+            beforeInstall.collections=[FontCollection(name:"Queued collection",members:[queued.id])]
+            model.savePersonal(beforeInstall);try await wait(model)
             model.installChecked()
             try await wait(model)
             guard let installed = model.fonts.first(where: { $0.canManage && $0.state == .enabled }) else { throw NSError(domain: "Installation did not persist", code: 5) }
+            guard model.personal.collections.first?.members.contains(installed.id)==true,
+                  model.personal.annotations[installed.id]?.note=="Keep after installation" else{throw PocketError("Installation lost personal data")}
             model.selection = [installed.id]
             model.changeEnabled(false); try await wait(model)
             guard model.fonts.contains(where: { $0.id == installed.id && $0.state == .disabled }) else { throw NSError(domain: "Disable failed", code: 6) }
@@ -65,10 +72,22 @@ import FontPocketCore
             model.testReduceTransparency=false;model.testReduceMotion=false;model.testAppearance = .light;model.language="ko"
             model.details=true;model.detailsTab="characters"
             try await Task.sleep(nanoseconds:1_500_000_000);try await capture("characters-ko.png",output:output)
+            try validateTabs(["미리보기","문자표","지원 범위","정보","검사"])
+            model.testAppearance = .dark
+            try await Task.sleep(nanoseconds:400_000_000);try await capture("characters-dark-ko.png",output:output)
+            model.language="en";try await Task.sleep(nanoseconds:300_000_000)
+            try validateTabs(["Preview","Characters","Coverage","Information","Inspection"])
+            model.language="ko";model.testAppearance = .light
             model.detailsTab="inspection";try await Task.sleep(nanoseconds:300_000_000)
             model.details=false;try await Task.sleep(nanoseconds:400_000_000)
             model.toolsTab="collections";model.tools=true
             try await Task.sleep(nanoseconds:800_000_000);try await capture("collections-ko.png",output:output)
+            try validateTabs(["메모·태그","모음","중복","버전","전체 견본","검사","백업·업데이트"])
+            model.testAppearance = .dark
+            try await Task.sleep(nanoseconds:400_000_000);try await capture("collections-dark-ko.png",output:output)
+            model.language="en";try await Task.sleep(nanoseconds:300_000_000)
+            try validateTabs(["Notes / tags","Collections","Duplicates","Versions","Catalog","Inspect","Backup / update"])
+            model.language="ko";model.testAppearance = .light
             model.toolsTab="versions";try await Task.sleep(nanoseconds:400_000_000)
             model.tools=false;try await Task.sleep(nanoseconds:400_000_000)
             model.quickSearch=true;try await Task.sleep(nanoseconds:400_000_000);model.quickSearch=false
@@ -81,6 +100,20 @@ import FontPocketCore
         let deadline = Date().addingTimeInterval(50)
         while model.busy && Date() < deadline { try await Task.sleep(nanoseconds: 100_000_000) }
         guard !model.busy, model.error == nil else { throw NSError(domain: model.error ?? "Operation timed out", code: 8) }
+    }
+    private static func validateTabs(_ labels:[String]) throws{
+        func controls(_ view:NSView)->[NSSegmentedControl]{
+            (view as? NSSegmentedControl).map{[$0]} ?? view.subviews.flatMap(controls)
+        }
+        let nativeControls=NSApp.windows.filter(\.isVisible).compactMap(\.contentView).flatMap(controls)
+        guard let control=nativeControls.first(where:{$0.identifier?.rawValue=="font-pocket-sections" && $0.segmentCount==labels.count}) else{throw PocketError("Native section selector missing")}
+        var width:CGFloat=0
+        for (index,label) in labels.enumerated(){
+            let measured=(label as NSString).size(withAttributes:[.font:control.font ?? NSFont.systemFont(ofSize:NSFont.systemFontSize)]).width
+            guard control.label(forSegment:index)==label,control.width(forSegment:index)>=measured+12 else{throw PocketError("Truncated section label: "+label)}
+            width+=control.width(forSegment:index)
+        }
+        guard control.frame.width>=width else{throw PocketError("Compressed section selector")}
     }
     private static func capture(_ name: String, output: String) async throws {
         guard let window = NSApp.keyWindow ?? NSApp.windows.first(where: { $0.title == "Font Pocket" }), let view = window.contentView else { throw NSError(domain: "No app window", code: 3) }

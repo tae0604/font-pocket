@@ -67,17 +67,32 @@ struct SmokeAccessibility: ViewModifier {
         alert.addButton(withTitle: model.t("중지하고 종료", "Stop and Quit"))
         return alert.runModal() == .alertSecondButtonReturn
     }
+    private func confirmUnsaved(_ model: AppModel) -> Bool {
+        guard model.hasUnsavedLibraryEdits else { return true }
+        let alert=NSAlert()
+        alert.messageText=model.t("저장하지 않은 라이브러리 변경이 있습니다","Library changes have not been saved")
+        alert.informativeText=model.t("편집 중인 내용을 버리고 종료할까요?","Discard the edits and quit?")
+        alert.addButton(withTitle:model.t("계속 편집","Keep Editing"))
+        alert.addButton(withTitle:model.t("버리고 종료","Discard and Quit"))
+        return alert.runModal() == .alertSecondButtonReturn
+    }
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
-        guard let model, model.busy else { return .terminateNow }
+        guard let model else { return .terminateNow }
+        guard confirmUnsaved(model) else{return .terminateCancel}
+        guard model.busy else{model.hasUnsavedLibraryEdits=false;return .terminateNow}
         if exiting { return .terminateCancel }
         guard confirm(model) else { return .terminateCancel }
+        model.hasUnsavedLibraryEdits=false
         exiting = true
         Task { await model.cancelAndWait(); NSApp.reply(toApplicationShouldTerminate: true) }
         return .terminateLater
     }
     func windowShouldClose(_ sender: NSWindow) -> Bool {
-        guard let model, model.busy else { return true }
+        guard let model else { return true }
+        guard confirmUnsaved(model) else{return false}
+        guard model.busy else{model.hasUnsavedLibraryEdits=false;return true}
         guard !exiting, confirm(model) else { return false }
+        model.hasUnsavedLibraryEdits=false
         exiting = true
         Task { await model.cancelAndWait(); NSApp.terminate(nil) }
         return false

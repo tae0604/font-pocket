@@ -33,6 +33,7 @@ struct DownloadRequest: Identifiable { let id = UUID(); let candidates: [Downloa
     @Published var automaticUpdates = UserDefaults.standard.object(forKey:"automaticUpdates") as? Bool ?? true { didSet{UserDefaults.standard.set(automaticUpdates,forKey:"automaticUpdates")} }
     @Published var quickSearch = false
     @Published var tools = false
+    @Published var hasUnsavedLibraryEdits = false
     @Published var toolsTab = "notes"
     @Published var details = false
     @Published var detailsTab = "preview"
@@ -113,6 +114,7 @@ struct DownloadRequest: Identifiable { let id = UUID(); let candidates: [Downloa
             }
             do { try await action() }
             catch is CancellationError { record(t("작업을 중지했습니다.", "Task stopped.")) }
+            catch is LibraryEditConflict { self.error=t("다른 작업에서 같은 항목이 변경됐습니다. 현재 편집 내용은 유지했습니다. 닫을 때 변경을 버리고 최신 정보를 다시 열어 주세요.","The same field changed in another operation. Your edits are still here. Discard them and reopen the latest library to resolve the conflict.");record(self.error!) }
             catch { self.error = error.localizedDescription; record(error.localizedDescription) }
         }
     }
@@ -227,25 +229,46 @@ struct DownloadRequest: Identifiable { let id = UUID(); let candidates: [Downloa
         guard !files.isEmpty else { return }
         perform(t("폰트 설치 중…", "Installing fonts…")) {
             var count = 0, archived = 0, failures: [String] = []
-            for (index, file) in files.enumerated() {
-                try Task.checkCancellation()
-                self.status = self.t("설치 중", "Installing") + " \(index+1) / \(files.count)"
-                do {
-                    _ = try await self.vault.capture(file)
-                    let incoming=try FontReader.faces(file)
-                    let overlaps=self.fonts.contains{old in (old.state == .enabled || old.state == .external) && incoming.contains{$0.postScript==old.postScript}}
-                    if !overlaps,try await self.repository.install(file) { count += 1 }
-                    if overlaps{archived += 1}
-                    let hash=try FontReader.hash(file)
-                    for face in incoming{if let entry=self.personal.annotations.removeValue(forKey:face.id){self.personal.annotations[hash+"|"+face.postScript]=entry}}
-                    let done = Set(self.queue.filter { $0.file == file }.map(\.id))
-                    self.queue.removeAll { done.contains($0.id) }; self.checked.subtract(done); self.queueSelection.subtract(done)
-                } catch is CancellationError { throw CancellationError() }
-                catch { failures.append(error.localizedDescription) }
+            let installed = try await self.repository.library(includeSystem: true)
+            var active = Set(installed.filter { [.enabled, .external].contains($0.state) }.map(\.postScript))
+            do {
+                for (index, file) in files.enumerated() {
+                    try Task.checkCancellation()
+                    self.status = self.t("설치 중", "Installing") + " \(index + 1) / \(files.count)"
+                    do {
+                        let versions = try await self.vault.capture(file)
+                        guard let hash = versions.first?.hash else { throw PocketError("The font has no readable faces") }
+                        let names = Set(versions.map(\.postScript))
+                        if active.isDisjoint(with: names) {
+                            let added = try await self.repository.install(file)
+                            if await self.repository.managedState(hash) == .disabled {
+                                try await self.repository.setEnabled(hash, enabled: true)
+                            }
+                            if added { count += 1 }
+                            active.formUnion(names)
+                        } else { archived += 1 }
+                        // Finish the current committed file before honoring cancellation.
+                        // Rekey notes AND manual collection memberships to the installed ID.
+                        let baseline = self.personal
+                        var edited = baseline
+                        for face in self.queue where face.file == file {
+                            edited.remap(face.id, to: hash + "|" + face.postScript)
+                        }
+                        self.personal = try await self.personalStore.saveChanges(edited, baseline: baseline)
+                        let done = Set(self.queue.filter { $0.file == file }.map(\.id))
+                        self.queue.removeAll { done.contains($0.id) }
+                        self.checked.subtract(done)
+                        self.queueSelection.subtract(done)
+                    } catch is CancellationError { throw CancellationError() }
+                    catch { failures.append(error.localizedDescription) }
+                }
+            } catch {
+                await self.reloadAfterMutation()
+                throw error
             }
-            try await self.personalStore.save(self.personal)
             try await self.reload()
-            self.record(self.t("폰트 파일 \(count)개 설치 · 동일 이름 \(archived)개는 버전 보관함에 저장", "Installed \(count) font files · \(archived) conflicting versions archived"))
+            self.record(self.t("폰트 파일 \(count)개 설치 · 동일 이름 \(archived)개는 버전 보관함에 저장",
+                               "Installed \(count) font files · \(archived) conflicting versions archived"))
             if !failures.isEmpty { throw PocketError(failures.joined(separator: "\n")) }
         }
     }
@@ -259,21 +282,22 @@ struct DownloadRequest: Identifiable { let id = UUID(); let candidates: [Downloa
             self.record(self.t("사용 설정을 변경했습니다.", "Font activation updated."))
         }
     }
-    private func reloadAfterMutation() async {
+    func reloadAfterMutation() async {
         await Task { try? await self.reload() }.value
     }
     func deleteSelected() {
-        let keys = Set(selectedFonts.compactMap(\.managedKey))
+        let selected=selectedFonts.filter(\.canManage)
+        let keys = Set(selected.compactMap(\.managedKey))
         guard !keys.isEmpty else { return }
         let alert = NSAlert()
         alert.messageText = t("폰트 파일 \(keys.count)개를 삭제할까요?", "Move \(keys.count) font files to Trash?")
-        alert.informativeText = t("Font Pocket이 설치한 파일만 휴지통으로 옮깁니다. 필요하면 먼저 백업하세요.", "Only files installed by Font Pocket will be moved to Trash. Back them up first if needed.")
+        alert.informativeText = t("복구 ZIP을 먼저 저장한 뒤 관리 중인 파일을 휴지통으로 옮깁니다. TTC·OTC는 같은 파일의 모든 서체가 함께 이동합니다.", "A recovery ZIP is saved before managed files move to Trash. All faces in a TTC/OTC file move together.")
         alert.addButton(withTitle: t("휴지통으로 이동", "Move to Trash")); alert.addButton(withTitle: t("취소", "Cancel"))
         guard alert.runModal() == .alertFirstButtonReturn else { return }
         perform(t("폰트 삭제 중…", "Removing fonts…")) {
             let recovery=self.dataRoot.appendingPathComponent("Removed")
             try FileManager.default.createDirectory(at:recovery,withIntermediateDirectories:true)
-            try await FontBackup.create(files:self.selectedFonts.filter{$0.canManage}.map(\.file),destination:recovery.appendingPathComponent(UUID().uuidString+".zip"))
+            try await FontBackup.create(files:selected.map(\.file),destination:recovery.appendingPathComponent(UUID().uuidString+".zip"))
             do { for key in keys { try await self.repository.trash(key) } }
             catch { await self.reloadAfterMutation(); throw error }
             try await self.reload()

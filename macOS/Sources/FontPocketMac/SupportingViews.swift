@@ -197,7 +197,7 @@ struct SettingsView: View {
                 }
                 Section {
                     Link(model.t("업데이트·다운로드 확인", "Check releases and downloads"), destination: URL(string: "https://github.com/tae0604/font-pocket/releases")!)
-                    Text("Font Pocket for macOS · 0.2.0").font(.caption).foregroundStyle(.secondary)
+                    Text("Font Pocket for macOS · 0.2.1").font(.caption).foregroundStyle(.secondary)
                 }
             }.formStyle(.grouped)
             HStack {

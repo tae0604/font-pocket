@@ -19,7 +19,7 @@ private final class HTTPTransfer: NSObject, URLSessionDataDelegate, @unchecked S
         let session = URLSession(configuration: config, delegate: self, delegateQueue: nil)
         self.session = session
         var request = URLRequest(url: url)
-        request.setValue("FontPocket-macOS/0.2.0", forHTTPHeaderField: "User-Agent")
+        request.setValue("FontPocket-macOS/0.2.1", forHTTPHeaderField: "User-Agent")
         let task = session.dataTask(with: request); self.task = task; task.resume()
     }
     func cancel() { lock.lock(); wasCancelled = true; task?.cancel(); lock.unlock() }

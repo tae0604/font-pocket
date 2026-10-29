@@ -1,4 +1,4 @@
-# Font Pocket 맥 버전 — 0.2.0
+# Font Pocket 맥 버전 — 0.2.1
 
 [English](README.md) · [윈도우 기능 대응표](FEATURE_PARITY.md)
 
@@ -6,7 +6,7 @@ macOS 13 Ventura 이상용 네이티브 SwiftUI 앱입니다. Apple Silicon과 I
 
 ## 열기
 
-성공한 **Build Font Pocket for macOS** 작업의 **Artifacts**에서 **FontPocket-macOS-0.2.0-universal**을 내려받으세요. Finder에서 안쪽 ZIP까지 풀어 **Font Pocket.app**을 여세요. 채팅이나 편집기에서 ZIP 미리보기를 여는 것은 앱 실행과 다릅니다.
+성공한 **Build Font Pocket for macOS** 작업의 **Artifacts**에서 **FontPocket-macOS-0.2.1-universal**을 내려받으세요. Finder에서 안쪽 ZIP까지 풀어 **Font Pocket.app**을 여세요. 채팅이나 편집기에서 ZIP 미리보기를 여는 것은 앱 실행과 다릅니다.
 
 현재 개발 빌드는 ad-hoc 코드 서명 상태이며 Apple Developer ID 서명·공증은 아직 받지 않았습니다.
 

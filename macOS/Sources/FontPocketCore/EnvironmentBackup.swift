@@ -27,27 +27,35 @@ public enum EnvironmentBackup{
         try ArchivePolicy.validate(Data(contentsOf:archive,options:.mappedIfSafe));try fm.createDirectory(at:stage,withIntermediateDirectories:true)
         defer{try? fm.removeItem(at:stage)}
         _ = try await ProcessRunner.run("/usr/bin/unzip",["-qq","-n",archive.path,"-d",stage.path])
-        let folder=stage.appendingPathComponent("FontPocketEnvironment"),manifest=try JSONDecoder().decode(EnvironmentManifest.self,from:Data(contentsOf:folder.appendingPathComponent("manifest.json")))
+        let folder=stage.appendingPathComponent("FontPocketEnvironment"),manifestFile=folder.appendingPathComponent("manifest.json")
+        guard (try manifestFile.resourceValues(forKeys:[.fileSizeKey]).fileSize ?? Int.max)<=8*1024*1024 else{throw PocketError("Environment manifest exceeds the size limit")}
+        let manifest=try JSONDecoder().decode(EnvironmentManifest.self,from:Data(contentsOf:manifestFile))
         guard manifest.schema==1 else{throw PocketError("Unsupported environment backup version")}
+        guard Set(manifest.personal.collections.map(\.id)).count==manifest.personal.collections.count else{throw PocketError("Duplicate collection identifiers in backup")}
+        var validated:[(ProfileFont,URL,[FontFace])]=[],hashes=Set<String>()
         for record in manifest.fonts{
             try Task.checkCancellation()
-            guard ArchivePolicy.safePath(record.filename),!record.filename.contains("/"),record.hash.count==64 else{throw PocketError("Invalid backup record")}
+            let ext=URL(fileURLWithPath:record.filename).pathExtension.lowercased()
+            guard record.hash.count==64,record.hash.allSatisfy(\.isHexDigit),hashes.insert(record.hash).inserted,
+                  FontReader.extensions.contains(ext),record.filename=="FontPocket-"+record.hash+"."+ext else{throw PocketError("Invalid backup record")}
             let file=folder.appendingPathComponent("Fonts").appendingPathComponent(record.filename)
-            guard try FontReader.hash(file)==record.hash else{throw PocketError("Backup integrity check failed")};_ = try FontReader.faces(file)
+            guard try FontReader.hash(file)==record.hash else{throw PocketError("Backup integrity check failed")}
+            validated.append((record,file,try FontReader.faces(file)))
         }
         let versionFiles=(try? fm.contentsOfDirectory(at:folder.appendingPathComponent("Versions"),includingPropertiesForKeys:nil)) ?? []
-        for file in versionFiles{try Task.checkCancellation();_ = try FontReader.faces(file);guard file.deletingPathExtension().lastPathComponent == (try FontReader.hash(file)) else{throw PocketError("Version backup integrity check failed")}}
+        for file in versionFiles{try Task.checkCancellation();guard FontReader.extensions.contains(file.pathExtension.lowercased()) else{throw PocketError("Invalid archived font format")};_ = try FontReader.faces(file);guard file.deletingPathExtension().lastPathComponent == (try FontReader.hash(file)) else{throw PocketError("Version backup integrity check failed")}}
         let existing=try await repository.library(includeSystem:true)
+        var active=Set(existing.filter{[.enabled,.external].contains($0.state)}.map(\.postScript))
         var restoredPersonal=manifest.personal
-        for record in manifest.fonts{
-            try Task.checkCancellation();let file=folder.appendingPathComponent("Fonts").appendingPathComponent(record.filename)
+        for (record,file,faces) in validated{
+            try Task.checkCancellation()
             _ = try await vault.capture(file)
-            let faces=try FontReader.faces(file)
             for old in existing where old.state == .external && faces.contains(where:{$0.postScript==old.postScript}){
                 if (try? FontReader.hash(old.file)) == record.hash{restoredPersonal.remap(record.hash+"|"+old.postScript,to:old.id)}
             }
-            if existing.contains(where:{old in old.managedKey != record.hash && [.enabled,.external].contains(old.state) && faces.contains(where:{$0.postScript==old.postScript})}){continue}
-            if try await repository.install(file),!record.enabled{try await repository.setEnabled(record.hash,enabled:false)}
+            if !active.isDisjoint(with:faces.map(\.postScript)){continue}
+            _ = try await repository.install(file,enabled:record.enabled)
+            if await repository.managedState(record.hash) == .enabled{active.formUnion(faces.map(\.postScript))}
         }
         for file in versionFiles{try Task.checkCancellation();_ = try await vault.capture(file)}
         var current=try await personal.read()

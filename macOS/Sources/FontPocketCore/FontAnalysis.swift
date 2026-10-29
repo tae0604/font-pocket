@@ -40,6 +40,8 @@ public enum FontAnalysis {
               let low = item[kCTFontVariationAxisMinimumValueKey as String] as? NSNumber,
               let high = item[kCTFontVariationAxisMaximumValueKey as String] as? NSNumber,
               let normal = item[kCTFontVariationAxisDefaultValueKey as String] as? NSNumber else { return nil }
+            guard low.doubleValue.isFinite,high.doubleValue.isFinite,normal.doubleValue.isFinite,
+                  low.doubleValue<=normal.doubleValue,normal.doubleValue<=high.doubleValue else{return nil}
             return VariationAxis(id: identifier.intValue, name: item[kCTFontVariationAxisNameKey as String] as? String ?? identifier.stringValue,
               minimum: low.doubleValue, defaultValue: normal.doubleValue, maximum: high.doubleValue)
         }
@@ -48,11 +50,15 @@ public enum FontAnalysis {
         let base=raw.prefix(4)==Data("ttcf".utf8) ? word(12):0
         let count=base+6<=raw.count ? Int(raw[base+4])*256+Int(raw[base+5]):0
         let tables=(0..<min(count,4096)).compactMap{i->String? in let p=base+12+i*16;guard p+4<=raw.count else{return nil};return String(data:raw.subdata(in:p..<p+4),encoding:.ascii)}
-        let issues = try validateSFNT(face.file)
+        let issues = try validateSFNTData(raw)
         return FontInspection(metadata: metadata, characters: characters, glyphs: CTFontGetGlyphCount(font), axes: axes, tables: tables, issues: issues)
     }
     public static func validateSFNT(_ url: URL) throws -> [String] {
         let data = try Data(contentsOf: url, options: .mappedIfSafe)
+        return try validateSFNTData(data)
+    }
+    private static func validateSFNTData(_ data:Data) throws -> [String] {
+        guard [Data([0,1,0,0]),Data("OTTO".utf8),Data("ttcf".utf8),Data("true".utf8)].contains(Data(data.prefix(4))) else{throw PocketError("Unsupported font signature")}
         func u16(_ p: Int) throws -> Int { guard p >= 0, p+2 <= data.count else { throw PocketError("Truncated font table directory") }; return Int(data[p])<<8 | Int(data[p+1]) }
         func u32(_ p: Int) throws -> Int { guard p >= 0,p+4 <= data.count else { throw PocketError("Truncated font table") }; return Int(data[p])<<24 | Int(data[p+1])<<16 | Int(data[p+2])<<8 | Int(data[p+3]) }
         var offsets = [0], issues: [String] = []
@@ -60,6 +66,7 @@ public enum FontAnalysis {
             let count = try u32(8); guard count > 0,count <= 1024 else { throw PocketError("Invalid collection count") }
             offsets = try (0..<count).map { try u32(12+$0*4) }
         }
+        var checked=Set<String>()
         for base in offsets {
             let count = try u16(base+4); guard count > 0,count <= 4096 else { throw PocketError("Invalid table count") }
             for i in 0..<count {
@@ -67,8 +74,10 @@ public enum FontAnalysis {
                 let p = base+12+i*16, expected = UInt32(try u32(p+4)), start = try u32(p+8), length = try u32(p+12)
                 guard start <= data.count,length <= data.count-start else { throw PocketError("Font table is outside the file") }
                 let tag = try u32(p)
+                if !checked.insert("\(tag)|\(start)|\(length)|\(expected)").inserted{continue}
                 var sum: UInt32 = 0
                 for j in stride(from: 0, to: length, by: 4) {
+                    if j & 65535 == 0{try Task.checkCancellation()}
                     var word: UInt32 = 0
                     for k in 0..<4 { word = (word << 8) | (j+k < length ? UInt32(data[start+j+k]) : 0) }
                     if tag == 0x68656164 && j == 8 { word = 0 }

@@ -38,6 +38,51 @@ public struct PersonalDocument: Codable, Equatable, Sendable {
         if let entry=annotations.removeValue(forKey:old),annotations[new]==nil{annotations[new]=entry}
         for index in collections.indices{if collections[index].members.remove(old) != nil{collections[index].members.insert(new)}}
     }
+    /// Apply only fields actually edited in this window. Keep changes made by a
+    /// restore or another window, and reject overlapping edits without writing.
+    public func applyingEdits(_ edited: PersonalDocument, baseline: PersonalDocument) throws -> PersonalDocument {
+        func merge<T: Equatable>(_ original: T, _ value: T, _ current: T) throws -> T {
+            guard value != original else { return current }
+            guard current == original || current == value else { throw LibraryEditConflict() }
+            return value
+        }
+        var result = self
+        for key in Set(baseline.annotations.keys).union(edited.annotations.keys) {
+            guard baseline.annotations[key] != edited.annotations[key] else { continue }
+            guard let value = edited.annotations[key] else {
+                guard self.annotations[key] == nil || self.annotations[key] == baseline.annotations[key] else { throw LibraryEditConflict() }
+                result.annotations.removeValue(forKey: key); continue
+            }
+            let old = baseline.annotations[key] ?? FontAnnotation()
+            var current = self.annotations[key] ?? FontAnnotation()
+            current.note = try merge(old.note, value.note, current.note)
+            current.tags = try merge(old.tags, value.tags, current.tags)
+            current.favorite = try merge(old.favorite, value.favorite, current.favorite)
+            result.annotations[key] = current
+        }
+        for old in baseline.collections where !edited.collections.contains(where: { $0.id == old.id }) {
+            if let current = result.collections.first(where: { $0.id == old.id }), current != old { throw LibraryEditConflict() }
+            result.collections.removeAll { $0.id == old.id }
+        }
+        for value in edited.collections {
+            guard let old = baseline.collections.first(where: { $0.id == value.id }) else {
+                if let current = result.collections.first(where: { $0.id == value.id }) {
+                    guard current == value else { throw LibraryEditConflict() }
+                } else { result.collections.append(value) }
+                continue
+            }
+            guard value != old else { continue }
+            guard let index = result.collections.firstIndex(where: { $0.id == value.id }) else { throw LibraryEditConflict() }
+            result.collections[index].name = try merge(old.name, value.name, result.collections[index].name)
+            result.collections[index].rule = try merge(old.rule, value.rule, result.collections[index].rule)
+            result.collections[index].members = try merge(old.members, value.members, result.collections[index].members)
+        }
+        return result
+    }
+}
+public struct LibraryEditConflict: LocalizedError {
+    public init() {}
+    public var errorDescription: String? { "The same library field changed in another operation. Your edits were not overwritten." }
 }
 public actor PersonalLibrary {
     public let root: URL
@@ -47,6 +92,11 @@ public actor PersonalLibrary {
         return FileManager.default.fileExists(atPath: url.path) ? try JSONDecoder().decode(PersonalDocument.self,from: Data(contentsOf: url)) : PersonalDocument()
     }
     public func save(_ document: PersonalDocument) throws { try JSONEncoder().encode(document).write(to: root.appendingPathComponent("personal.json"),options:.atomic) }
+    public func saveChanges(_ edited: PersonalDocument, baseline: PersonalDocument) throws -> PersonalDocument {
+        let merged = try read().applyingEdits(edited, baseline: baseline)
+        try save(merged)
+        return merged
+    }
 }
 
 public struct FontVersion: Identifiable, Codable, Sendable {
@@ -72,15 +122,26 @@ public actor VersionVault {
         guard version.filename == version.hash+"."+URL(fileURLWithPath:version.filename).pathExtension,
               version.hash.count == 64,version.hash.allSatisfy(\.isHexDigit) else { throw PocketError("Invalid version record") }
         let url = root.appendingPathComponent(version.filename)
+        let values = try url.resourceValues(forKeys:[.isRegularFileKey,.isSymbolicLinkKey])
+        guard values.isRegularFile == true,values.isSymbolicLink != true else{throw PocketError("Invalid stored version file")}
         guard try FontReader.hash(url) == version.hash else { throw PocketError("Stored version integrity check failed") }
         return url
     }
     @discardableResult public func capture(_ url: URL) throws -> [FontVersion] {
         let hash = try FontReader.hash(url), faces = try FontReader.faces(url)
         var records = try read()
-        if records.contains(where:{$0.hash == hash}) { return records.filter{$0.hash == hash} }
-        let filename = hash+"."+url.pathExtension.lowercased(), destination = root.appendingPathComponent(filename)
-        if !FileManager.default.fileExists(atPath:destination.path) { try FileManager.default.copyItem(at:url,to:destination) }
+        let existing=records.filter{$0.hash == hash}
+        let filename = existing.first?.filename ?? hash+"."+url.pathExtension.lowercased(), destination = root.appendingPathComponent(filename)
+        guard filename==hash+"."+URL(fileURLWithPath:filename).pathExtension,FontReader.extensions.contains(URL(fileURLWithPath:filename).pathExtension.lowercased()) else{throw PocketError("Invalid stored version filename")}
+        if let version=existing.first,(try? file(version)) != nil{return existing}
+        // An existing index entry alone does not prove its original still exists.
+        let temporary=root.appendingPathComponent(UUID().uuidString+".tmp")
+        defer{try? FileManager.default.removeItem(at:temporary)}
+        try FileManager.default.copyItem(at:url,to:temporary)
+        guard try FontReader.hash(temporary)==hash else{throw PocketError("The version changed while copying")}
+        try Task.checkCancellation()
+        if FileManager.default.fileExists(atPath:destination.path){_ = try FileManager.default.replaceItemAt(destination,withItemAt:temporary)}else{try FileManager.default.moveItem(at:temporary,to:destination)}
+        if !existing.isEmpty{return existing}
         let added = faces.map { face in FontVersion(hash:hash,filename:filename,family:face.family,style:face.style,postScript:face.postScript,
             version:CTVersion(face),added:Date()) }
         records += added
@@ -96,6 +157,15 @@ public struct DuplicateGroup: Identifiable, Sendable {
     public let fonts: [FontFace]
 }
 public enum DuplicateFinder {
+    public static func deletionCandidates(_ groups:[DuplicateGroup],selected:Set<String>,keep:[String:String])->[FontFace]{
+        let selectedGroups=groups.filter{selected.contains($0.id)}
+        let protected=Set(selectedGroups.compactMap{group in group.fonts.first{$0.id==keep[group.id]}?.file})
+        var files=Set<URL>()
+        return selectedGroups.flatMap{group in
+            guard group.fonts.contains(where:{$0.id==keep[group.id]}) else{return [FontFace]()}
+            return group.fonts.filter{face in face.canManage && !protected.contains(face.file) && (group.exact || !["TTC","OTC"].contains(face.format)) && files.insert(face.file).inserted}
+        }
+    }
     public static func find(_ fonts: [FontFace]) throws -> [DuplicateGroup] {
         var hashes: [URL:String] = [:]
         for file in Set(fonts.map(\.file)) { try Task.checkCancellation(); hashes[file] = try FontReader.hash(file) }
