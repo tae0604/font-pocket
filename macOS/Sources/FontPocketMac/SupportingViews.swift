@@ -103,8 +103,8 @@ struct DownloadPicker: View {
     @State private var checked = Set<String>()
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            Text(model.t("다운로드할 파일 선택", "Choose files to download")).font(.title2.bold())
-            Text(model.t("필요한 형식과 스타일만 선택하세요. 폰트 라이선스는 제작사 안내를 확인해 주세요.", "Choose the formats and styles you need. Check the creator's font license.")).foregroundStyle(.secondary)
+            Text(request.navigation ? model.t("관련 다운로드 페이지 선택","Choose a related download page"):model.t("다운로드할 파일 선택", "Choose files to download")).font(.title2.bold())
+            Text(request.navigation ? model.t("자동으로 파일을 찾지 못했습니다. 폰트가 있는 페이지를 골라 계속하세요.","No file was found automatically. Choose the relevant page to continue."):model.t("필요한 형식과 스타일만 선택하세요. 폰트 라이선스는 제작사 안내를 확인해 주세요.", "Choose the formats and styles you need. Check the creator's font license.")).foregroundStyle(.secondary)
             List(request.candidates) { candidate in
                 Toggle(isOn: Binding(get: { checked.contains(candidate.id) }, set: { if $0 { checked.insert(candidate.id) } else { checked.remove(candidate.id) } })) {
                     VStack(alignment: .leading, spacing: 4) {
@@ -118,7 +118,7 @@ struct DownloadPicker: View {
                 Button(model.t("선택 해제", "Clear")) { checked = [] }
                 Spacer()
                 Button(model.t("취소", "Cancel")) { model.finishChoices([]); dismiss() }.keyboardShortcut(.cancelAction)
-                Button(model.t("선택 파일 받기", "Download selected")) {
+                Button(request.navigation ? model.t("계속","Continue"):model.t("선택 파일 받기", "Download selected")) {
                     model.finishChoices(request.candidates.filter { checked.contains($0.id) }); dismiss()
                 }.pocketPrimary().keyboardShortcut(.defaultAction).disabled(checked.isEmpty)
             }

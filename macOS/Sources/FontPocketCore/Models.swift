@@ -28,7 +28,7 @@ public struct FontFace: Identifiable, Hashable, Sendable {
     public var canManage: Bool { managedKey != nil }
     public var canAdopt: Bool { state == .external && file.standardizedFileURL.deletingLastPathComponent() == LibraryPaths.live.fonts.standardizedFileURL && file.resolvingSymlinksInPath() == file.standardizedFileURL }
     public init(id: String, file: URL, family: String, style: String, postScript: String, format: String,
-                bytes: Int64, state: FontState, managedKey: String? = nil,version:String="",weight:Double=0,variable:Bool=false,scripts:Set<String>=[]) {
+                bytes: Int64, state: FontState, managedKey: String? = nil,version:String="",weight:Double=0,variable:Bool=false,scripts: Set<String> = []) {
         self.id = id; self.file = file; self.family = family; self.style = style; self.postScript = postScript
         self.format = format; self.bytes = bytes; self.state = state; self.managedKey = managedKey
         self.version=version;weightValue=weight;self.variable=variable;self.scripts=scripts

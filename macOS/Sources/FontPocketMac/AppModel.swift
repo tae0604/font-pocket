@@ -6,7 +6,7 @@ import FontPocketCore
 
 enum Page: String, CaseIterable, Identifiable { case manager, install, backup, activity; var id: String { rawValue } }
 struct ActivityEntry: Identifiable, Codable { var id = UUID(); let date: Date; let message: String }
-struct DownloadRequest: Identifiable { let id = UUID(); let candidates: [DownloadCandidate] }
+struct DownloadRequest: Identifiable { let id = UUID(); let candidates: [DownloadCandidate];var navigation=false }
 
 @MainActor final class AppModel: ObservableObject {
     @Published var page: Page = .manager
@@ -182,7 +182,7 @@ struct DownloadRequest: Identifiable { let id = UUID(); let candidates: [Downloa
                 guard let url = URL(string: line) else { continue }
                 self.status = self.t("다운로드 파일 찾는 중 · ", "Finding downloads · ") + (url.host ?? "")
                 do {
-                    let choices = try await FontDownloads.resolve(url)
+                    let choices = try await self.resolveDownloads(url)
                     guard !choices.isEmpty else { throw PocketError("No desktop font files were found.") }
                     let selected = await self.choose(choices)
                     try Task.checkCancellation()
@@ -198,9 +198,24 @@ struct DownloadRequest: Identifiable { let id = UUID(); let candidates: [Downloa
             self.record(self.t("다운로드 완료 · 설치할 폰트를 선택하세요.", "Downloads complete · choose fonts to install."))
         }
     }
-    private func choose(_ choices: [DownloadCandidate]) async -> [DownloadCandidate] {
+    private func resolveDownloads(_ url:URL,depth:Int=0) async throws->[DownloadCandidate]{
+        do{return try await FontDownloads.resolve(url)}
+        catch is CancellationError{throw CancellationError()}
+        catch{
+            let original=error
+            guard depth<3 else{throw original}
+            let pages=try await FontDownloads.relatedPages(url)
+            guard !pages.isEmpty else{throw original}
+            let selected=await choose(pages,navigation:true);try Task.checkCancellation()
+            guard !selected.isEmpty else{throw CancellationError()}
+            var result:[DownloadCandidate]=[]
+            for page in selected{result += try await resolveDownloads(page.url,depth:depth+1)}
+            return result
+        }
+    }
+    private func choose(_ choices: [DownloadCandidate],navigation:Bool=false) async -> [DownloadCandidate] {
         await withCheckedContinuation { continuation in
-            chooser = continuation; downloadRequest = DownloadRequest(candidates: choices)
+            chooser = continuation; downloadRequest = DownloadRequest(candidates: choices,navigation:navigation)
         }
     }
     func finishChoices(_ choices: [DownloadCandidate]) {

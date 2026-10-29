@@ -1,48 +1,52 @@
-# Font Pocket for macOS — 0.1.0 Preview
+# Font Pocket for macOS — 0.2.0
 
-Native SwiftUI application for macOS 13 Ventura and later. The universal app supports Apple Silicon and Intel Macs. The original Font Pocket logo is preserved; interface icons use Apple's built-in SF Symbols.
+[한국어](README.ko.md) · [Windows → macOS feature map](FEATURE_PARITY.md)
 
-## Apple Liquid Glass
+Native SwiftUI font downloader and manager for macOS 13 Ventura and later. The universal app supports Apple Silicon and Intel. The original blue folder logo and Font Pocket wordmark are retained. Interface icons use Apple's system SF Symbols.
 
-On macOS 26 and later, the app uses the system NavigationSplitView sidebar and toolbar, native glass/glassProminent button styles, GlassEffectContainer for grouped preview actions, and glassEffect for the floating task controls. These are Apple's actual Liquid Glass APIs, not custom blur/gradient imitations. Font lists and sample text stay on readable content surfaces. Older macOS versions use native controls and regular material. Build with Xcode 26 or newer to include Liquid Glass; older compilers build the compatibility UI.
+## Open
 
-Design references: [Apple Liquid Glass](https://developer.apple.com/kr/documentation/technologyoverviews/liquid-glass), [adopting Liquid Glass](https://developer.apple.com/documentation/technologyoverviews/adopting-liquid-glass).
+Download a successful **Build Font Pocket for macOS** artifact from the **codex/macos-native** branch. Extract the artifact, then extract **FontPocket-macOS-0.2.0-universal.zip** in Finder and open **Font Pocket.app**. ZIP preview inside a chat/editor does not launch an app.
 
-## Build
-
-Install Apple's Xcode Command Line Tools, then run:
-
-```sh
-cd macOS
-swift test
-bash build.sh
-```
-
-The app and ZIP are written to `macOS/dist`. GitHub Actions also builds a downloadable universal preview artifact on the `codex/macos-native` branch. Tests that read actual fonts use `FONTPOCKET_TEST_FONT` pointing to a licensed TTF file (CI uses the project's OFL-licensed Pretendard fixture).
+This development build has an ad-hoc code signature. Apple Developer ID signing and notarization have not been performed.
 
 ## Included
 
-- Batch download desktop fonts from Noonnu, Google Fonts, creator download pages and direct HTTPS font/ZIP URLs. Choose the actual files before downloading.
-- Import TTF, OTF, TTC, OTC, ZIP archives and folders of fonts. Drag files into the window or use Open With.
-- Read metadata, edit preview text and size, compare up to four fonts, search and favorite fonts.
-- Install for the current macOS user, enable/disable app-owned fonts, and move them to Trash after confirmation.
-- Back up selected font files to ZIP, cancel a running operation, and confirm before quitting during work. Cancelled backups preserve an existing ZIP.
-- Korean and English UI, including settings and dialogs.
+- Batch download from Noonnu, Google Fonts, creator pages and direct HTTPS font/ZIP links, with file selection.
+- Import files, folders and ZIPs together; TTF/OTF/TTC/OTC, WOFF/WOFF2/SFNT conversion; format/static/variable preferences and removable queue rows.
+- Inline sample text/size, comparison up to 12 faces/256 MB, variable axis sliders, searchable Unicode character map and actual character coverage.
+- Name, designer, manufacturer, version, copyright and license metadata; table bounds/checksum inspection.
+- Name/file/version/note/tag search; format, activation, script, weight, static/variable, favorites and collection filters; family ordering.
+- Notes, tags, favorites and editable manual/smart collections; select filtered fonts for collection activation.
+- SHA-256 version archive, uninstalled versions, comparison and switching with rollback. Existing conflicting styles remain active while new files are archived.
+- Exact-file and same-style duplicate review, keep-file choice, recovery ZIP before Trash and restore through the installation queue.
+- Current-user install and activation. Existing user-folder fonts can be explicitly adopted after archiving originals. System/shared fonts remain protected.
+- Selected-font ZIP and environment backup/restore: user-folder fonts, disabled managed fonts, versions, notes, tags, favorites, collections and activation. Existing data wins; conflicting active styles are archived.
+- List/two-column/grid/family catalogs, multiple-size and full-character pagination, native print/PDF.
+- Original-font or WOFF2 packages with CSS/editable HTML, standalone WOFF2.
+- Command-K and global Command-Option-Space search, Finder reveal, Font Book, Open With, drag/drop, persistent history, cancellation and quit confirmation.
+- Korean/English, optional daily update checks and official macOS update verification/restart/rollback.
 
-## Storage and safety
+## Apple Liquid Glass
 
-Installed files are copied to `~/Library/Fonts/FontPocket-<SHA256>.<extension>`. The ownership catalog and disabled fonts live in `~/Library/Application Support/Font Pocket/`. Files that were modified outside the app are refused by management operations. System and pre-existing fonts are read-only in Font Pocket. Changes may require other applications to refresh their font lists or restart.
+On macOS 26+, native NavigationSplitView/toolbars, real glass/glassProminent styles, GlassEffectContainer and glassEffect are used for controls. Font lists and previews keep readable backgrounds. Older macOS uses native controls/material. System reduced-transparency/motion settings are respected. Xcode 26+ includes the new APIs; older compilers build the native fallback.
 
-ZIP imports reject traversal paths, symlinks, excessive expansion, encrypted archives, ZIP64 and path-override metadata. Import limit: 2,048 files, 200 MB compressed ZIP and 512 MB expanded data. Keep source filenames and licensing information when distributing fonts; Font Pocket does not grant font redistribution rights.
+[Apple Liquid Glass](https://developer.apple.com/kr/documentation/technologyoverviews/liquid-glass) · [Adopting Liquid Glass](https://developer.apple.com/kr/documentation/technologyoverviews/adopting-liquid-glass)
 
-## Preview limitations
+## Build and verification
 
-This preview has an ad-hoc signature, **not** an Apple Developer ID signature or notarization. Public distribution with normal Gatekeeper trust requires a separately configured Apple Developer account and notarization. No Windows signing certificate is reused. Do not disable Gatekeeper to run it.
+On a Mac with Xcode Command Line Tools:
 
-WOFF/WOFF2 conversion, variable-font axis editing, character maps, font-version history, automatic app updates and Windows environment-backup compatibility are not implemented in this macOS preview. Use desktop TTF/OTF downloads. The app is distributed outside the App Store because it manages fonts in the user's font directory; it is not a sandboxed Store build.
+    cd macOS
+    swift test
+    bash build.sh
 
-## Testing
+Outputs are in macOS/dist. Tests use FONTPOCKET_TEST_FONT pointing to a licensed TTF; CI uses the project's OFL Pretendard fixture. CI tests macOS 14 compatibility and macOS 26, builds both architectures, verifies the packaged signature and launches the native app in isolated font/catalog folders. Smoke checks exercise Core Text activation, packaged WOFF2 conversion, environment backup, personal data, catalog PDFs and native windows. Hosted Macs are used; this does not install the app on the owner's MacBook.
 
-Tests cover URL parsing, ZIP path/symlink/size validation, real Core Text font metadata, queue deduplication, installation rollback, activation persistence, external-file change protection, ZIP backup/restore and cancellation. Repository unit tests inject temporary font folders and a registration stub. On the disposable hosted Mac only, FONTPOCKET_LIVE_CORETEXT_TEST=1 also verifies real user-scope Core Text registration. The native app smoke test uses isolated catalog/font folders, installs a real font with Core Text, disables/re-enables it, creates a backup and renders both languages. It unregisters the temporary font before exiting. Compatibility tests run separately on macOS 14.
+## Storage and limits
 
-The build and launch checks run on GitHub-hosted Macs; they do not install the app on your own MacBook. Manual Finder, multi-app font visibility and Apple notarization checks are still needed before a public release.
+Active managed files: ~/Library/Fonts/FontPocket-<SHA256>.<extension>. Catalog, disabled fonts, originals, personal data, recovery ZIPs and versions: ~/Library/Application Support/Font Pocket/. Management refuses externally modified files.
+
+Downloads/ZIPs: 1 GB compressed, 2 GB expanded, 10,000 entries. Native fonts: 512 MB; WOFF2 input: 128 MB, converted output: 150 MB. Comparison: 12 faces/256 MB. Printing: 300 pages with an explicit error before printing if exceeded. ZIP64, encryption, symlinks, traversal/override filenames and excessive expansion are rejected. Created backups must pass the restore policy before replacing an existing file.
+
+Windows registry/associations are replaced by Core Text, Finder and Font Book. Environment ZIP formats are platform-specific; ordinary font ZIPs can be imported on both platforms. In-app updates require an official macOS ZIP and matching SHA-256 sidecar. Font redistribution still depends on the creator's license.

@@ -65,6 +65,16 @@ public enum HTTPClient {
 }
 
 public enum FontDownloads {
+    private actor PageBudget{var pages=Set<URL>();func take(_ url:URL)->Bool{guard pages.count<12,!pages.contains(url) else{return false};pages.insert(url);return true}}
+    public static func relatedPages(_ url:URL) async throws->[DownloadCandidate]{
+        let html=String(decoding:try await HTTPClient.get(url),as:UTF8.self)
+        var seen=Set<URL>()
+        return links(in:html,base:url).filter{pair in
+            guard pair.0 != url,seen.insert(pair.0).inserted else{return false}
+            let label=(pair.1+" "+pair.0.path).lowercased()
+            return label.contains("download") || label.contains("다운로드") || label.contains("font") || label.contains("서체") || label.contains("글꼴")
+        }.prefix(12).map{DownloadCandidate(url:$0.0,name:$0.1.isEmpty ? $0.0.absoluteString:$0.1)}
+    }
     public static func googleFamily(_ url: URL) -> String? {
         guard url.host?.lowercased() == "fonts.google.com", url.pathComponents.count >= 3,
               url.pathComponents[1] == "specimen" else { return nil }
@@ -100,14 +110,14 @@ public enum FontDownloads {
             }
             throw PocketError("Google Fonts desktop files were not found for this family.")
         }
-        return try await explore(url, depth: 0, visited: [])
+        return try await explore(url, depth: 0, visited: [],budget:PageBudget())
     }
     private struct GitHubFile: Decodable { let name: String; let download_url: URL? }
     private struct GitHubAsset: Decodable { let name: String; let browser_download_url: URL }
     private struct GitHubRelease: Decodable { let assets: [GitHubAsset] }
-    private static func explore(_ url: URL, depth: Int, visited: Set<URL>) async throws -> [DownloadCandidate] {
+    private static func explore(_ url: URL, depth: Int, visited: Set<URL>,budget:PageBudget) async throws -> [DownloadCandidate] {
         try Task.checkCancellation()
-        guard depth <= 4 && !visited.contains(url) else { return [] }
+        guard depth <= 3 && !visited.contains(url),await budget.take(url) else { return [] }
         let allowed = FontImporter.supported.union(["zip"])
         if allowed.contains(url.pathExtension.lowercased()) {
             return [DownloadCandidate(url: url, name: url.lastPathComponent)]
@@ -141,7 +151,7 @@ public enum FontDownloads {
         var visited = visited; visited.insert(url)
         for (candidate, _) in next.prefix(5) {
             do {
-                let result = try await explore(candidate, depth: depth+1, visited: visited)
+                let result = try await explore(candidate, depth: depth+1, visited: visited,budget:budget)
                 if !result.isEmpty { return result }
             } catch is CancellationError { throw CancellationError() } catch { continue }
         }
