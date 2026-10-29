@@ -21,6 +21,12 @@ jobs:
         run: swift test
       - name: Build Apple Silicon and Intel app
         run: bash macOS/build.sh
+      - name: Launch native app and render Korean and English windows
+        env:
+          FONTPOCKET_MAC_TEST_ROOT: ${{ runner.temp }}/FontPocket-Smoke
+          FONTPOCKET_MAC_SMOKE_OUTPUT: ${{ github.workspace }}/macOS/dist/screenshots
+        timeout-minutes: 2
+        run: '"macOS/dist/Font Pocket.app/Contents/MacOS/FontPocket" --smoke-test'
       - name: Upload macOS preview
         uses: actions/upload-artifact@v4
         with:
@@ -28,5 +34,6 @@ jobs:
           path: |
             macOS/dist/*.zip
             macOS/dist/*.sha256
+            macOS/dist/screenshots/*.png
           if-no-files-found: error
           retention-days: 14

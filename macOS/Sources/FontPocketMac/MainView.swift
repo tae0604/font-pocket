@@ -44,7 +44,7 @@ struct MainView: View {
     private var sidebar: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 9) {
-                if let url = Bundle.module.url(forResource: "FontPocket-logo", withExtension: "png"), let image = NSImage(contentsOf: url) {
+                if let url = Bundle.main.url(forResource: "FontPocket-logo", withExtension: "png") ?? Bundle.module.url(forResource: "FontPocket-logo", withExtension: "png"), let image = NSImage(contentsOf: url) {
                     Image(nsImage: image).resizable().scaledToFit().frame(width: 28, height: 28)
                 }
                 Text("Font Pocket").font(.system(size: 20, weight: .semibold))

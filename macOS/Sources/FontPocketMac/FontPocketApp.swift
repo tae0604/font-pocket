@@ -5,7 +5,7 @@ import AppKit
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var delegate
     @StateObject private var model: AppModel
     init() {
-        do { _model = StateObject(wrappedValue: try AppModel()) }
+        do { let initialModel = try AppModel(); _model = StateObject(wrappedValue: initialModel) }
         catch {
             // Show a useful recovery error instead of silently replacing a damaged catalog.
             let alert = NSAlert(); alert.messageText = "Font Pocket"; alert.informativeText = error.localizedDescription
@@ -18,7 +18,11 @@ import AppKit
                 .frame(minWidth: 960, minHeight: 680)
                 .background(WindowHook(delegate: delegate, model: model))
                 .onOpenURL { model.addFiles([$0]) }
-                .task { delegate.model = model; model.refresh() }
+                .task {
+                    delegate.model = model
+                    if ProcessInfo.processInfo.arguments.contains("--smoke-test") { await SmokeTest.run(model) }
+                    else { model.refresh() }
+                }
         }
         .defaultSize(width: 1180, height: 820)
         .commands {

@@ -8,14 +8,16 @@ swift build -c release --arch arm64 --arch x86_64
 BIN="$(swift build -c release --arch arm64 --arch x86_64 --show-bin-path)"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 cp "$BIN/FontPocket" "$APP/Contents/MacOS/FontPocket"
-find "$BIN" -maxdepth 1 -name '*.bundle' -exec cp -R '{}' "$APP/Contents/Resources/" \;
+find "$BIN" -maxdepth 1 -name '*.bundle' -exec cp -R '{}' "$APP/" \;
 cp Sources/FontPocketMac/Resources/FontPocket-logo.png "$APP/Contents/Resources/FontPocket-logo.png"
 ICONSET="$(mktemp -d)/FontPocket.iconset"
 mkdir -p "$ICONSET"
 for SIZE in 16 32 128 256 512; do
-  sips -z "$SIZE" "$SIZE" Sources/FontPocketMac/Resources/FontPocket-logo.png --out "$ICONSET/icon_${SIZE}x${SIZE}.png" >/dev/null
+  sips -Z "$SIZE" Sources/FontPocketMac/Resources/FontPocket-logo.png --out "$ICONSET/icon_${SIZE}x${SIZE}.png" >/dev/null
+  sips --padToHeightWidth "$SIZE" "$SIZE" "$ICONSET/icon_${SIZE}x${SIZE}.png" >/dev/null
   DOUBLE=$((SIZE*2))
-  sips -z "$DOUBLE" "$DOUBLE" Sources/FontPocketMac/Resources/FontPocket-logo.png --out "$ICONSET/icon_${SIZE}x${SIZE}@2x.png" >/dev/null
+  sips -Z "$DOUBLE" Sources/FontPocketMac/Resources/FontPocket-logo.png --out "$ICONSET/icon_${SIZE}x${SIZE}@2x.png" >/dev/null
+  sips --padToHeightWidth "$DOUBLE" "$DOUBLE" "$ICONSET/icon_${SIZE}x${SIZE}@2x.png" >/dev/null
 done
 iconutil -c icns "$ICONSET" -o "$APP/Contents/Resources/FontPocket.icns"
 cat > "$APP/Contents/Info.plist" <<PLIST

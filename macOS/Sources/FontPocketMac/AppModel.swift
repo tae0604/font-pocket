@@ -39,7 +39,10 @@ struct DownloadRequest: Identifiable { let id = UUID(); let candidates: [Downloa
         language = UserDefaults.standard.string(forKey: "language") ?? (Locale.preferredLanguages.first?.hasPrefix("ko") == true ? "ko" : "en")
         favorites = Set(UserDefaults.standard.stringArray(forKey: "favorites") ?? [])
         workspace = FileManager.default.temporaryDirectory.appendingPathComponent("FontPocket-Mac-\(UUID().uuidString)")
-        repository = try FontRepository()
+        if let root = ProcessInfo.processInfo.environment["FONTPOCKET_MAC_TEST_ROOT"] {
+            let folder = URL(fileURLWithPath: root)
+            repository = try FontRepository(paths: LibraryPaths(root: folder.appendingPathComponent("Catalog"), fonts: folder.appendingPathComponent("Fonts")))
+        } else { repository = try FontRepository() }
         importer = try FontImporter(workspace: workspace)
         if language == "en" { previewText = "The quick brown fox jumps over the lazy dog.\nA typeface for every idea." }
     }
