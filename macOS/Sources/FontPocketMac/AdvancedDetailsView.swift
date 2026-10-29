@@ -52,6 +52,7 @@ struct AdvancedDetailsView:View{
             }
             HStack{Button(model.t("원본·CSS·HTML 저장","Export font / CSS / HTML")){model.exportWeb(face,woff2:false)};Button(model.t("WOFF2 저장","Export WOFF2")){model.exportWeb(face,woff2:true)};Button(model.t("WOFF2·CSS·HTML 저장","Export WOFF2 / CSS / HTML")){model.exportWeb(face,woff2:true,package:true)};Spacer();Text(problem).font(.caption).foregroundStyle(.red)}.disabled(model.busy)
         }.padding(22).frame(width:900,height:700)
+        .safeAreaInset(edge:.bottom){if model.busy{TaskControls().environmentObject(model).padding(12)}}
         .task{let task=Task.detached{try FontAnalysis.inspect(face)};do{report=try await withTaskCancellationHandler(operation:{try await task.value},onCancel:{task.cancel()})}catch{problem=error.localizedDescription}}
     }
 }
@@ -63,6 +64,6 @@ struct QuickSearchView:View{
     @FocusState private var focused:Bool
     var body:some View{VStack{
         HStack{Image(systemName:"magnifyingglass");TextField(model.t("이름·메모·태그 검색","Search name, notes or tags"),text:$query).textFieldStyle(.plain).font(.title3).focused($focused);Button(model.t("닫기","Done")){dismiss()}.keyboardShortcut(.cancelAction)}.padding()
-        List(model.fonts.filter{face in let note=model.personal.annotations[face.id] ?? FontAnnotation();return query.isEmpty || (face.title+" "+face.version+" "+face.format+" "+note.note+" "+note.tags.joined(separator:" ")).localizedCaseInsensitiveContains(query)}.prefix(100)){face in Button{model.selection=[face.id];model.page = .manager;dismiss()}label:{HStack{Text(face.title);Spacer();Text(face.format).foregroundStyle(.secondary)}}.buttonStyle(.plain).padding(.vertical,5)}
+        List(model.fonts.filter{face in let note=model.personal.annotations[face.id] ?? FontAnnotation();return query.isEmpty || (face.title+" "+face.version+" "+face.format+" "+note.note+" "+note.tags.joined(separator:" ")).localizedCaseInsensitiveContains(query)}.prefix(100)){face in Button{model.search="";model.activeCollection=nil;model.onlyFavorites=false;model.formatFilter="";model.stateFilter="";model.languageFilter="";model.weightFilter="";model.variableOnly=false;model.fixedOnly=false;model.selection=[face.id];model.page = .manager;dismiss()}label:{HStack{Text(face.title);Spacer();Text(face.format).foregroundStyle(.secondary)}}.buttonStyle(.plain).padding(.vertical,5)}
     }.frame(width:660,height:480).onAppear{focused=true}}
 }

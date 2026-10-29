@@ -97,6 +97,20 @@ public enum FontDownloads {
     public static func resolve(_ url: URL) async throws -> [DownloadCandidate] {
         if let family = googleFamily(url) {
             for section in ["ofl", "apache", "ufl"] {
+                // Raw METADATA.pb avoids the public GitHub REST API's shared-IP
+                // rate limit and lists the actual desktop font files.
+                do{
+                    let base=URL(string:"https://raw.githubusercontent.com/google/fonts/main/\(section)/\(family)/")!
+                    let metadata=String(decoding:try await HTTPClient.get(base.appendingPathComponent("METADATA.pb")),as:UTF8.self)
+                    let regex=try NSRegularExpression(pattern:"filename:\\s*\"([^\"]+)\"")
+                    let string=metadata as NSString;var seen=Set<String>()
+                    let choices=regex.matches(in:metadata,range:NSRange(location:0,length:string.length)).compactMap{match->DownloadCandidate? in
+                        let name=string.substring(with:match.range(at:1))
+                        guard !name.contains("/"),ArchivePolicy.safePath(name),FontReader.extensions.contains(URL(fileURLWithPath:name).pathExtension.lowercased()),seen.insert(name).inserted else{return nil}
+                        return DownloadCandidate(url:base.appendingPathComponent(name),name:name)
+                    }
+                    if !choices.isEmpty{return choices.sorted{$0.name<$1.name}}
+                }catch is CancellationError{throw CancellationError()}catch{}
                 let endpoint = URL(string: "https://api.github.com/repos/google/fonts/contents/\(section)/\(family)")!
                 do {
                     let data = try await HTTPClient.get(endpoint)
@@ -162,6 +176,11 @@ public enum FontDownloads {
         try Task.checkCancellation()
         var ext = choice.url.pathExtension.lowercased()
         if data.prefix(4) == Data([0x50,0x4b,0x03,0x04]) { ext = "zip" }
+        else if [Data([0,1,0,0]),Data("true".utf8)].contains(Data(data.prefix(4))){ext="ttf"}
+        else if data.prefix(4)==Data("OTTO".utf8){ext="otf"}
+        else if data.prefix(4)==Data("ttcf".utf8){ext="ttc"}
+        else if data.prefix(4)==Data("wOFF".utf8){ext="woff"}
+        else if data.prefix(4)==Data("wOF2".utf8){ext="woff2"}
         guard FontImporter.supported.union(["zip"]).contains(ext) else { throw PocketError("The server did not return a supported font or ZIP file.") }
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         let file = folder.appendingPathComponent(UUID().uuidString + "." + ext)

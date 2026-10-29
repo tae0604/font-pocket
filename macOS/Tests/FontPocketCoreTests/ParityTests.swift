@@ -44,4 +44,12 @@ final class ParityTests:XCTestCase{
         let hash=try FontReader.hash(fixture());XCTAssertEqual(try FontReader.hash(paths.root.appendingPathComponent("Originals/"+hash+".ttf")),hash)
         try await repo.setEnabled(hash,enabled:false)
     }
+    func testAdoptionFailureRestoresOriginal()async throws{
+        let root=try temporary();defer{try? FileManager.default.removeItem(at:root)}
+        let hash=try FontReader.hash(fixture()),paths=LibraryPaths(root:root.appendingPathComponent("Library"),fonts:root.appendingPathComponent("Fonts"))
+        let repo=try FontRepository(paths:paths,registration:SelectiveRegistration(rejected:hash)),original=paths.fonts.appendingPathComponent("existing.ttf")
+        try FileManager.default.copyItem(at:fixture(),to:original)
+        do{_ = try await repo.adopt(original);XCTFail("Adoption should fail")}catch{}
+        XCTAssertEqual(try FontReader.hash(original),hash);let snapshot=try await repo.snapshot();XCTAssertTrue(snapshot.isEmpty)
+    }
 }

@@ -2,6 +2,11 @@ import SwiftUI
 import AppKit
 import FontPocketCore
 
+struct TaskControls:View{
+    @EnvironmentObject var model:AppModel
+    var body:some View{HStack(spacing:12){ProgressView().controlSize(.small);Text(model.status).font(.caption).lineLimit(2);Spacer();Button(model.t("중지","Stop")){model.cancel()}}.padding(.horizontal,16).padding(.vertical,10).pocketFloatingSurface()}
+}
+
 struct PreviewPane<Actions: View>: View {
     @EnvironmentObject var model: AppModel
     let face: FontFace?

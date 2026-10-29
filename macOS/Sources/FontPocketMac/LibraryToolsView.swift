@@ -18,7 +18,9 @@ struct LibraryToolsView:View{
     @State private var update=""
     @State private var comparison:[FontFace]=[]
     @State private var compare=false
+    @State private var allVersions=false
     private var face:FontFace?{model.preview ?? model.fonts.first}
+    private var visibleVersions:[FontVersion]{allVersions || face==nil ? versions:versions.filter{$0.postScript==face?.postScript}}
     var body:some View{
         VStack(alignment:.leading,spacing:16){
             HStack{Text(model.t("라이브러리 도구","Library tools")).font(.title2.bold());Spacer();Button(model.t("닫기","Done")){dismiss()}.keyboardShortcut(.cancelAction)}
@@ -31,6 +33,7 @@ struct LibraryToolsView:View{
                 inspectionView.tag("inspect").tabItem{Text(model.t("검사","Inspect"))}
                 backup.tag("backup").tabItem{Text(model.t("백업·업데이트","Backup / update"))}
             }
+            if model.busy{TaskControls().environmentObject(model)}
         }.padding(22).frame(width:1000,height:740)
         .sheet(isPresented:$compare){ComparisonView(faces:comparison).environmentObject(model)}
         .task{document=model.personal;do{versions=try await model.vault.read()}catch{model.error=error.localizedDescription}}
@@ -56,8 +59,9 @@ struct LibraryToolsView:View{
         Button(model.t("복구 백업 후 선택 그룹 정리","Back up and remove selected duplicates")){let remove=groups.filter{clean.contains($0.id)}.flatMap{group in group.fonts.filter{$0.file != group.fonts.first(where:{$0.id==keep[group.id]})?.file && $0.canManage && (group.exact || !["TTC","OTC"].contains($0.format))}};model.cleanDuplicates(remove)}.disabled(model.busy || clean.isEmpty)
     }.padding()}
     private var versionView:some View{VStack(alignment:.leading,spacing:12){
+        Toggle(model.t("모든 보관 버전 표시","Show all archived styles"),isOn:$allVersions).onChange(of:allVersions){_ in versionSelection=[]}
         HStack{Button(model.t("선택 폰트 보관","Archive selected")){model.archiveSelection()}.disabled(model.busy);Button(model.t("버전 파일·ZIP 추가","Add version files / ZIP")){let panel=NSOpenPanel();panel.allowsMultipleSelection=true;guard panel.runModal() == .OK else{return};model.perform(model.t("버전 읽는 중…","Reading versions…")){for file in try await model.importer.read(panel.urls){_ = try await model.vault.capture(file.file)};versions=try await model.vault.read()}}.disabled(model.busy);Button(model.t("새로고침","Refresh")){Task{do{versions=try await model.vault.read()}catch{model.error=error.localizedDescription}}}}
-        Table(versions,selection:$versionSelection){TableColumn(model.t("글꼴","Font"),value:\.family);TableColumn(model.t("스타일","Style"),value:\.style);TableColumn(model.t("버전","Version"),value:\.version);TableColumn("SHA256"){Text(String($0.hash.prefix(12)))}}
+        Table(visibleVersions,selection:$versionSelection){TableColumn(model.t("글꼴","Font"),value:\.family);TableColumn(model.t("스타일","Style"),value:\.style);TableColumn(model.t("버전","Version"),value:\.version);TableColumn("SHA256"){Text(String($0.hash.prefix(12)))}}
         HStack{Button(model.t("선택 버전 비교","Compare versions")){model.perform(model.t("버전 읽는 중…","Reading versions…")){var result:[FontFace]=[];for version in versions where versionSelection.contains(version.id){let url=try await model.vault.file(version);if let face=try FontReader.faces(url).first(where:{$0.postScript==version.postScript}){result.append(face)}};comparison=result;compare=true}}.disabled(model.busy || versionSelection.count<2 || versionSelection.count>12)
         Button(model.t("선택한 버전 사용","Activate selected version")){if let version=versions.first(where:{versionSelection.contains($0.id)}){model.activateVersion(version)}}.disabled(model.busy || versionSelection.count != 1)}
     }.padding()}
