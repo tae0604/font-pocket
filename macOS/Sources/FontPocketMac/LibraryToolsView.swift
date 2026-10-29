@@ -34,7 +34,7 @@ struct LibraryToolsView:View{
                 backup.tag("backup").tabItem{Text(model.t("백업·업데이트","Backup / update"))}
             }
             if model.busy{TaskControls().environmentObject(model)}
-        }.padding(22).frame(width:1000,height:740)
+        }.padding(22).frame(width:940,height:620)
         .sheet(isPresented:$compare){ComparisonView(faces:comparison).environmentObject(model)}
         .task{document=model.personal;do{versions=try await model.vault.read()}catch{model.error=error.localizedDescription}}
     }

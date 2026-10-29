@@ -91,7 +91,7 @@ struct InstallView: View {
             }
             PreviewPane(face: model.preview) {
                 Button(model.t("상세 정보", "Details")) { details = true }.disabled(model.preview == nil)
-            }.frame(minHeight: 180, idealHeight: 200, maxHeight: 250)
+            }.frame(minHeight: 220, idealHeight: 240, maxHeight: 280)
         }
         .sheet(isPresented: $details) { if let face = model.preview { DetailsView(face: face).environmentObject(model) } }
         .sheet(isPresented:$compare){ComparisonView(faces:compareFonts).environmentObject(model)}

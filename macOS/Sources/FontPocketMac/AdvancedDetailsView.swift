@@ -22,15 +22,15 @@ struct AdvancedDetailsView:View{
         VStack(alignment:.leading,spacing:14){
             HStack{Text(face.title).font(.title2.bold());Spacer();Button(model.t("인쇄·PDF","Print / PDF")){FontPrinting.printFonts([face],text:model.previewText)};Button(model.t("닫기","Done")){dismiss()}.keyboardShortcut(.cancelAction)}
             TabView(selection:$model.detailsTab){
-                VStack(alignment:.leading,spacing:12){
-                    PreviewPane(face:face){EmptyView()}.frame(minHeight:240)
+                ScrollView{VStack(alignment:.leading,spacing:12){
+                    PreviewPane(face:face){EmptyView()}.frame(height:240)
                     if let report,!report.axes.isEmpty{
                         Text(model.t("가변 축 조절","Variable axes")).font(.headline)
                         ForEach(report.axes){axis in HStack{Text(axis.name).frame(width:100,alignment:.leading);Slider(value:Binding(get:{axes[axis.id] ?? axis.defaultValue},set:{axes[axis.id]=$0}),in:axis.minimum...axis.maximum);Text(String(format:"%.1f",axes[axis.id] ?? axis.defaultValue)).monospacedDigit().frame(width:65)}}
                         ScrollView{Text(model.previewText).font(Font(face.variedFont(size:model.previewSize,values:axes))).frame(maxWidth:.infinity,alignment:.leading)}.frame(minHeight:100)
                         Button(model.t("기본값 복원","Reset axes")){axes=[:]}
                     }
-                }.padding().tag("preview").tabItem{Text(model.t("미리보기","Preview"))}
+                }}.padding().tag("preview").tabItem{Text(model.t("미리보기","Preview"))}
                 VStack{
                     HStack{TextField(model.t("문자 또는 U+AC00 검색","Character or U+AC00"),text:$query).textFieldStyle(.roundedBorder);Picker(model.t("범위","Range"),selection:$range){Text(model.t("전체","All")).tag("");ForEach(FontAnalysis.ranges,id:\.0){Text($0.0).tag($0.0)}}.frame(width:210)}
                     ScrollView{LazyVGrid(columns:[GridItem(.adaptive(minimum:64))],spacing:10){ForEach(Array(characters.dropFirst(page*256).prefix(256)),id:\.self){value in Button{
@@ -51,7 +51,7 @@ struct AdvancedDetailsView:View{
                 }.padding().tag("inspection").tabItem{Text(model.t("검사","Inspection"))}
             }
             HStack{Button(model.t("원본·CSS·HTML 저장","Export font / CSS / HTML")){model.exportWeb(face,woff2:false)};Button(model.t("WOFF2 저장","Export WOFF2")){model.exportWeb(face,woff2:true)};Button(model.t("WOFF2·CSS·HTML 저장","Export WOFF2 / CSS / HTML")){model.exportWeb(face,woff2:true,package:true)};Spacer();Text(problem).font(.caption).foregroundStyle(.red)}.disabled(model.busy)
-        }.padding(22).frame(width:900,height:700)
+        }.padding(22).frame(width:900,height:620)
         .safeAreaInset(edge:.bottom){if model.busy{TaskControls().environmentObject(model).padding(12)}}
         .task{let task=Task.detached{try FontAnalysis.inspect(face)};do{report=try await withTaskCancellationHandler(operation:{try await task.value},onCancel:{task.cancel()})}catch{problem=error.localizedDescription}}
     }
