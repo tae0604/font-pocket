@@ -1,0 +1,32 @@
+name: Build Font Pocket for macOS
+on:
+  push:
+    branches: [main, 'codex/macos-native']
+    paths: ['macOS/**', '.github/workflows/macos-build.yml']
+  pull_request:
+    paths: ['macOS/**', '.github/workflows/macos-build.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: macos-14
+    timeout-minutes: 25
+    env:
+      FONTPOCKET_TEST_FONT: ${{ github.workspace }}/outputs/FontPocket/Brand/Fonts/Pretendard-SemiBold.ttf
+    steps:
+      - uses: actions/checkout@v4
+      - name: Test font import, activation, rollback and backup
+        working-directory: macOS
+        run: swift test
+      - name: Build Apple Silicon and Intel app
+        run: bash macOS/build.sh
+      - name: Upload macOS preview
+        uses: actions/upload-artifact@v4
+        with:
+          name: FontPocket-macOS-0.1.0-universal
+          path: |
+            macOS/dist/*.zip
+            macOS/dist/*.sha256
+          if-no-files-found: error
+          retention-days: 14
