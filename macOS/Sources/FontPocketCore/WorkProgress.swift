@@ -77,7 +77,7 @@ public enum BackupArchive {
         progress?(WorkProgress(.archiving,total:paths.count))
         let output: String
         do {
-            output = try await ProcessRunner.run("/usr/bin/zip",["-r","-UN=UTF8",temporary.path,folder.lastPathComponent],
+            output = try await ProcessRunner.run("/usr/bin/zip",["-r",temporary.path,folder.lastPathComponent],
                 directory:folder.deletingLastPathComponent(),onLine:{reporter.consume($0)})
         } catch is CancellationError { throw CancellationError() }
         catch { throw PocketError("ZIP compression: \(error.localizedDescription)") }
