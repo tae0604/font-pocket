@@ -109,10 +109,11 @@ struct MainView: View {
                 TableColumn(model.t("크기", "Size")) { face in Text(ByteCountFormatter.string(fromByteCount: face.bytes, countStyle: .file)).foregroundStyle(.secondary) }.width(80)
             }
             .contextMenu { contextActions }
+            .onTapGesture(count:2){if model.preview != nil{showDetails=true}}
             if model.page != .backup {
                 PreviewPane(face: model.preview) {
                     Button(model.t("상세 정보", "Details")) { showDetails = true }.disabled(model.preview == nil)
-                    Button(model.t("비교", "Compare")) { showComparison = true }.disabled(model.selectedFonts.count < 2)
+                    Button(model.t("비교", "Compare")) { showComparison = true }.disabled(model.selectedFonts.count < 2 || model.selectedFonts.count > 12 || model.selectedFonts.reduce(Int64(0)){$0+$1.bytes}>256*1024*1024)
                 }.frame(minHeight: 190, idealHeight: 230, maxHeight: 270)
             }
         }.searchable(text: $model.search, placement: .toolbar, prompt: model.t("폰트 검색", "Search fonts"))
@@ -150,7 +151,7 @@ struct MainView: View {
         Button(model.t("환경 복원","Restore environment")){model.profileRestore()}.disabled(model.busy)
         Button(model.t("삭제 폰트 복원","Restore removed fonts")){model.restoreDeleted()}.disabled(model.busy)
         Button(model.t("상세 정보", "Details")) { showDetails = true }.disabled(model.preview == nil)
-        Button(model.t("비교", "Compare")) { showComparison = true }.disabled(model.selectedFonts.count < 2)
+        Button(model.t("비교", "Compare")) { showComparison = true }.disabled(model.selectedFonts.count < 2 || model.selectedFonts.count > 12 || model.selectedFonts.reduce(Int64(0)){$0+$1.bytes}>256*1024*1024)
         Button(model.t("즐겨찾기 전환", "Toggle favorite")) { model.toggleFavorites() }.disabled(model.selection.isEmpty)
         Button(model.t("파일 위치 열기", "Show in Finder")) { NSWorkspace.shared.activateFileViewerSelecting(model.selectedFonts.map(\.file)) }.disabled(model.selection.isEmpty)
         Divider()

@@ -25,6 +25,9 @@ struct DownloadRequest: Identifiable { let id = UUID(); let candidates: [Downloa
     @Published var languageFilter = ""
     @Published var variableOnly = false
     @Published var groupFamilies = false
+    @Published var importFormat = "TTF"
+    @Published var includeTTC = false
+    @Published var automaticUpdates = UserDefaults.standard.object(forKey:"automaticUpdates") as? Bool ?? true { didSet{UserDefaults.standard.set(automaticUpdates,forKey:"automaticUpdates")} }
     @Published var quickSearch = false
     @Published var tools = false
     let personalStore: PersonalLibrary
@@ -81,7 +84,7 @@ struct DownloadRequest: Identifiable { let id = UUID(); let candidates: [Downloa
         }
         return groupFamilies ? filtered.sorted{$0.family==$1.family ? $0.weight < $1.weight : $0.family.localizedStandardCompare($1.family) == .orderedAscending} : filtered
     }
-    var selectedFonts: [FontFace] { fonts.filter { selection.contains($0.id) } }
+    var selectedFonts: [FontFace] { visibleFonts.filter { selection.contains($0.id) } }
     var selectedQueue: [FontFace] { queue.filter { queueSelection.contains($0.id) } }
     var preview: FontFace? { page == .install ? selectedQueue.first ?? queue.first : selectedFonts.first }
     func record(_ text: String) {
@@ -140,7 +143,7 @@ struct DownloadRequest: Identifiable { let id = UUID(); let candidates: [Downloa
         // Prefer one file format for a PostScript name, avoiding duplicate TTF/OTF installation.
         var names = Set(queue.filter { checked.contains($0.id) }.map(\.postScript))
         for face in added.sorted(by: { ($0.format == "TTF" ? 0 : 1) < ($1.format == "TTF" ? 0 : 1) }) {
-            if names.insert(face.postScript).inserted { checked.insert(face.id) }
+            if (face.format == importFormat || importFormat == "ALL" || ["TTC","OTC"].contains(face.format) && includeTTC),names.insert(face.postScript).inserted { checked.insert(face.id) }
         }
         if queueSelection.isEmpty, let first = queue.first { queueSelection = [first.id] }
         record(t("폰트 \(added.count)개를 대기열에 추가했습니다.", "Added \(added.count) fonts to the queue."))
@@ -228,6 +231,9 @@ struct DownloadRequest: Identifiable { let id = UUID(); let candidates: [Downloa
         alert.addButton(withTitle: t("휴지통으로 이동", "Move to Trash")); alert.addButton(withTitle: t("취소", "Cancel"))
         guard alert.runModal() == .alertFirstButtonReturn else { return }
         perform(t("폰트 삭제 중…", "Removing fonts…")) {
+            let recovery=LibraryPaths.live.root.appendingPathComponent("Removed")
+            try FileManager.default.createDirectory(at:recovery,withIntermediateDirectories:true)
+            try await FontBackup.create(files:self.selectedFonts.filter{$0.canManage}.map(\.file),destination:recovery.appendingPathComponent(UUID().uuidString+".zip"))
             do { for key in keys { try await self.repository.trash(key) } }
             catch { await self.reloadAfterMutation(); throw error }
             try await self.reload()

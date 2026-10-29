@@ -20,7 +20,7 @@ public enum WoffDecoder {
             if compressed==length{table=data.subdata(in:start..<start+length)}else{
                 var actual=uLongf(length)
                 let status=table.withUnsafeMutableBytes{dest in data.withUnsafeBytes{src in uncompress(dest.bindMemory(to:Bytef.self).baseAddress,&actual,src.bindMemory(to:Bytef.self).baseAddress!.advanced(by:start),uLong(compressed))}}
-                guard status==Z_OK,actual==length else{throw PocketError("Damaged WOFF compression")}
+                guard status==Z_OK,actual==uLongf(length) else{throw PocketError("Damaged WOFF compression")}
             }
             put(tag,12+i*16);put(try n(p+16,4),16+i*16);put(target,20+i*16);put(length,24+i*16)
             output.replaceSubrange(target..<target+length,with:table);target += (length+3) & ~3

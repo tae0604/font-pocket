@@ -108,7 +108,7 @@ public enum FontDownloads {
     private static func explore(_ url: URL, depth: Int, visited: Set<URL>) async throws -> [DownloadCandidate] {
         try Task.checkCancellation()
         guard depth <= 4 && !visited.contains(url) else { return [] }
-        let allowed = FontReader.extensions.union(["zip"])
+        let allowed = FontImporter.supported.union(["zip"])
         if allowed.contains(url.pathExtension.lowercased()) {
             return [DownloadCandidate(url: url, name: url.lastPathComponent)]
         }
@@ -152,7 +152,7 @@ public enum FontDownloads {
         try Task.checkCancellation()
         var ext = choice.url.pathExtension.lowercased()
         if data.prefix(4) == Data([0x50,0x4b,0x03,0x04]) { ext = "zip" }
-        guard FontReader.extensions.union(["zip"]).contains(ext) else { throw PocketError("The server did not return a supported font or ZIP file.") }
+        guard FontImporter.supported.union(["zip"]).contains(ext) else { throw PocketError("The server did not return a supported font or ZIP file.") }
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         let file = folder.appendingPathComponent(UUID().uuidString + "." + ext)
         try data.write(to: file, options: .atomic)

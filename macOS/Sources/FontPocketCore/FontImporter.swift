@@ -95,7 +95,11 @@ public actor FontImporter {
     private func expand(_ url: URL) async throws -> [URL] {
         let values = try url.resourceValues(forKeys: [.isDirectoryKey, .isSymbolicLinkKey])
         guard values.isSymbolicLink != true else { throw PocketError("Symbolic links are not imported.") }
-        if values.isDirectory == true { return try walk(url) }
+        if values.isDirectory == true {
+            var result:[URL]=[]
+            for file in try walk(url,includeArchives:true){if file.pathExtension.lowercased()=="zip"{result += try await expand(file)}else{result.append(file)}}
+            return result
+        }
         if url.pathExtension.lowercased() == "zip" {
             let size = try url.resourceValues(forKeys: [.fileSizeKey]).fileSize ?? 0
             guard size <= 200*1024*1024 else { throw PocketError("ZIP files must be under 200 MB.") }
@@ -120,7 +124,7 @@ public actor FontImporter {
         }
         return [url]
     }
-    private func walk(_ directory: URL) throws -> [URL] {
+    private func walk(_ directory: URL, includeArchives:Bool=false) throws -> [URL] {
         guard let enumerator = FileManager.default.enumerator(at: directory, includingPropertiesForKeys: [.isSymbolicLinkKey, .isRegularFileKey], options: [.skipsHiddenFiles, .skipsPackageDescendants]) else { return [] }
         var result: [URL] = []
         for case let file as URL in enumerator {
@@ -128,7 +132,7 @@ public actor FontImporter {
             let values = try file.resourceValues(forKeys: [.isSymbolicLinkKey, .isRegularFileKey])
             if values.isSymbolicLink == true { enumerator.skipDescendants(); continue }
             if file.pathComponents.contains("__MACOSX") { enumerator.skipDescendants(); continue }
-            if values.isRegularFile == true && Self.supported.contains(file.pathExtension.lowercased()) { result.append(file) }
+            if values.isRegularFile == true && (Self.supported.contains(file.pathExtension.lowercased()) || includeArchives && file.pathExtension.lowercased()=="zip") { result.append(file) }
             guard result.count <= 2048 else { throw PocketError("Import up to 2,048 font files at a time.") }
         }
         return result.sorted { $0.path < $1.path }

@@ -22,7 +22,12 @@ import AppKit
                 .task {
                     delegate.model = model
                     if ProcessInfo.processInfo.arguments.contains("--smoke-test") { await SmokeTest.run(model) }
-                    else { model.refresh() }
+                    else {
+                        model.refresh();delegate.enableSearch(model)
+                        if model.automaticUpdates,Date().timeIntervalSince(UserDefaults.standard.object(forKey:"lastUpdateCheck") as? Date ?? .distantPast)>86400{
+                            Task{do{let message=try await MacUpdates.check();UserDefaults.standard.set(Date(),forKey:"lastUpdateCheck");model.record(message)}catch{model.record(error.localizedDescription)}}
+                        }
+                    }
                 }
         }
         .defaultSize(width: 1180, height: 820)
@@ -48,6 +53,8 @@ struct SmokeAccessibility: ViewModifier {
 }
 
 @MainActor final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
+    private var shortcut:GlobalSearchShortcut?
+    func enableSearch(_ model:AppModel){if shortcut==nil{shortcut=GlobalSearchShortcut(model:model)}}
     weak var model: AppModel?
     private var exiting = false
     func applicationDidFinishLaunching(_ notification: Notification) { NSApp.setActivationPolicy(.regular); NSApp.activate(ignoringOtherApps: true) }

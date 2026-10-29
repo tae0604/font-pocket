@@ -40,6 +40,8 @@ struct PreviewPane<Actions: View>: View {
 struct InstallView: View {
     @EnvironmentObject var model: AppModel
     @State private var details = false
+    @State private var compare = false
+    private var compareFonts:[FontFace]{let checked=model.queue.filter{model.checked.contains($0.id)};return checked.isEmpty ? model.selectedQueue:checked}
     var body: some View {
         VStack(spacing: 14) {
             HStack(alignment: .top, spacing: 12) {
@@ -53,6 +55,8 @@ struct InstallView: View {
                 }.frame(width: 180, alignment: .leading)
             }
             HStack {
+                Picker(model.t("형식","Format"),selection:$model.importFormat){Text("TTF").tag("TTF");Text("OTF").tag("OTF");Text("TTF + OTF").tag("ALL")}.frame(width:170)
+                Toggle("TTC",isOn:$model.includeTTC)
                 Button(model.t("파일·ZIP·폴더 추가", "Add files, ZIP or folder")) { model.openFiles() }.disabled(model.busy)
                 Button(model.t("전체 선택", "Select all")) { model.checked = Set(model.queue.map(\.id)) }.disabled(model.busy)
                 Button(model.t("선택 해제", "Clear checks")) { model.checked = [] }.disabled(model.busy)
@@ -71,6 +75,8 @@ struct InstallView: View {
             HStack {
                 Text(model.t("\(model.checked.count)개 선택 / \(model.queue.count)개", "\(model.checked.count) selected / \(model.queue.count) \(model.queue.count == 1 ? "font" : "fonts")")).font(.caption).foregroundStyle(.secondary)
                 Spacer()
+                Button(model.t("비교","Compare")){compare=true}.disabled(compareFonts.count<2 || compareFonts.count>12 || compareFonts.reduce(Int64(0)){$0+$1.bytes}>256*1024*1024)
+                Button(model.t("버전으로 보관","Archive versions")){model.archiveSelection()}.disabled(model.busy || model.checked.isEmpty)
                 Button(model.t("선택한 폰트 설치", "Install checked fonts")) { model.installChecked() }.pocketPrimary().disabled(model.busy || model.checked.isEmpty)
             }
             PreviewPane(face: model.preview) {
@@ -78,6 +84,9 @@ struct InstallView: View {
             }.frame(minHeight: 180, idealHeight: 200, maxHeight: 250)
         }
         .sheet(isPresented: $details) { if let face = model.preview { DetailsView(face: face).environmentObject(model) } }
+        .sheet(isPresented:$compare){ComparisonView(faces:compareFonts).environmentObject(model)}
+        .onChange(of:model.importFormat){_ in model.checked=Set(model.queue.filter{$0.format==model.importFormat || model.importFormat=="ALL" || model.includeTTC && ["TTC","OTC"].contains($0.format)}.map(\.id))}
+        .onChange(of:model.includeTTC){_ in model.checked=Set(model.queue.filter{$0.format==model.importFormat || model.importFormat=="ALL" || model.includeTTC && ["TTC","OTC"].contains($0.format)}.map(\.id))}
     }
 }
 
@@ -180,6 +189,7 @@ struct SettingsView: View {
         VStack(alignment: .leading, spacing: 16) {
             Text(model.t("설정", "Settings")).font(.title2.bold())
             Form {
+                Toggle(model.t("하루 한 번 업데이트 확인","Check for updates once a day"),isOn:$model.automaticUpdates)
                 Section {
                     Picker(model.t("언어", "Language"), selection: $model.language) {
                         Text("한국어").tag("ko"); Text("English").tag("en")

@@ -7,7 +7,8 @@ import FontPocketCore
         let data=try Data(contentsOf:url)
         guard data.count<=128*1024*1024 else{throw PocketError("Font exceeds 128 MB")}
         let view=WKWebView(frame:.zero)
-        guard let resource=Bundle.main.url(forResource:"woff2-encoder",withExtension:"js") ?? Bundle.module.url(forResource:"woff2-encoder",withExtension:"js") else{throw PocketError("Font codec resource missing")}
+        let packaged=Bundle.main.resourceURL.flatMap{Bundle(url:$0.appendingPathComponent("FontPocketMac_FontPocketMac.bundle"))}
+        guard let resource=packaged?.url(forResource:"woff2-encoder",withExtension:"js") ?? Bundle.main.url(forResource:"woff2-encoder",withExtension:"js") ?? Bundle.module.url(forResource:"woff2-encoder",withExtension:"js") else{throw PocketError("Font codec resource missing")}
         let source=try String(contentsOf:resource).replacingOccurrences(of:"export{I as compress,Q as decompress};",with:"window.fontCodec={compress:I,decompress:Q};")
         let script=WKUserScript(source:source,injectionTime:.atDocumentStart,forMainFrameOnly:true)
         view.configuration.userContentController.addUserScript(script)
