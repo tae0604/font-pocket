@@ -11,7 +11,7 @@ public enum ArchivePolicy {
     }
     // Validate ZIP central AND local names before invoking macOS unzip. Reject symlinks,
     // path-override extra fields, ZIP64 and oversized archives rather than guessing.
-    public static func validate(_ data: Data) throws {
+    @discardableResult public static func validate(_ data: Data) throws -> [String] {
         func fail() -> PocketError { PocketError("Unsafe or unsupported ZIP archive.") }
         func u16(_ p: Int) throws -> Int {
             guard p >= 0 && p + 2 <= data.count else { throw fail() }
@@ -47,7 +47,13 @@ public enum ArchivePolicy {
             let extraEnd = extra+extraLength
             while extra < extraEnd {
                 let tag = try u16(extra), length = try u16(extra+2)
-                guard extra+4+length <= extraEnd, tag != 0x0001, tag != 0x7075 else { throw fail() }
+                guard extra+4+length <= extraEnd, tag != 0x0001 else { throw fail() }
+                if tag == 0x7075 {
+                    // A redundant Unicode path is safe only when it is byte-for-
+                    // byte identical to the UTF-8 central directory name.
+                    guard length>=5,data[extra+4]==1,
+                          data.subdata(in:extra+9..<extra+4+length)==data.subdata(in:position+46..<position+46+nameLength) else{throw fail()}
+                }
                 extra += 4+length
             }
             guard local >= 0, local+30 <= offset, try u32(local) == 0x04034b50,
@@ -59,12 +65,17 @@ public enum ArchivePolicy {
             var cursor = local+30+localName
             while cursor < local+30+localName+localExtra {
                 let tag = try u16(cursor), length = try u16(cursor+2)
-                guard cursor+4+length <= local+30+localName+localExtra, tag != 0x7075, tag != 0x0001 else { throw fail() }
+                guard cursor+4+length <= local+30+localName+localExtra, tag != 0x0001 else { throw fail() }
+                if tag == 0x7075 {
+                    guard length>=5,data[cursor+4]==1,
+                          data.subdata(in:cursor+9..<cursor+4+length)==data.subdata(in:position+46..<position+46+nameLength) else{throw fail()}
+                }
                 cursor += 4+length
             }
             position = next
         }
         guard position == end else { throw fail() }
+        return seen.sorted()
     }
 }
 
@@ -147,25 +158,21 @@ public actor FontImporter {
 }
 
 public enum FontBackup {
-    public static func create(files: [URL], destination: URL) async throws {
+    public static func create(files: [URL], destination: URL, progress: ProgressHandler? = nil) async throws {
         guard !files.isEmpty else { throw PocketError("Select fonts to back up.") }
         let fm = FileManager.default, staging = fm.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         let folder = staging.appendingPathComponent("Font Pocket Backup", isDirectory: true)
-        let temporaryZIP = destination.deletingLastPathComponent().appendingPathComponent(".FontPocket-\(UUID().uuidString).zip")
         try fm.createDirectory(at: folder, withIntermediateDirectories: true)
-        defer { try? fm.removeItem(at: staging); try? fm.removeItem(at: temporaryZIP) }
-        for file in Set(files) {
+        defer { try? fm.removeItem(at: staging) }
+        let unique=Set(files).sorted{$0.path<$1.path}
+        for (index,file) in unique.enumerated() {
             try Task.checkCancellation()
+            progress?(WorkProgress(.preparing,completed:index,total:unique.count))
             _ = try FontReader.faces(file)
             let hash = try FontReader.hash(file)
             let name = hash.prefix(12) + "-" + file.lastPathComponent
             try fm.copyItem(at: file, to: folder.appendingPathComponent(String(name)))
         }
-        _ = try await ProcessRunner.run("/usr/bin/ditto", ["-c", "-k", "--keepParent", folder.path, temporaryZIP.path])
-        try Task.checkCancellation()
-        try ArchivePolicy.validate(Data(contentsOf:temporaryZIP,options:.mappedIfSafe))
-        // Same directory / filesystem: replacement is atomic and preserves existing backups on cancellation.
-        if fm.fileExists(atPath: destination.path) { _ = try fm.replaceItemAt(destination, withItemAt: temporaryZIP) }
-        else { try fm.moveItem(at: temporaryZIP, to: destination) }
+        try await BackupArchive.create(folder:folder,destination:destination,progress:progress)
     }
 }

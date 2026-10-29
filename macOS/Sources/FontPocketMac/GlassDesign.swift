@@ -14,28 +14,29 @@ private struct PocketPrimary: ViewModifier {
     @Environment(\.accessibilityReduceTransparency) private var systemReduced
     @Environment(\.pocketTransparencyOverride) private var testReduced
     @ViewBuilder func body(content: Content) -> some View {
-        if testReduced ?? systemReduced { content.buttonStyle(.borderedProminent) }
+        if testReduced ?? systemReduced { content.buttonStyle(.borderedProminent).tint(Color(nsColor:.controlAccentColor)) }
         else {
         #if compiler(>=6.2)
-        if #available(macOS 26.0, *) { content.buttonStyle(.glassProminent) }
-        else { content.buttonStyle(.borderedProminent) }
+        if #available(macOS 26.0, *) { content.buttonStyle(.glassProminent).tint(Color(nsColor:.controlAccentColor)) }
+        else { content.buttonStyle(.borderedProminent).tint(Color(nsColor:.controlAccentColor)) }
         #else
-        content.buttonStyle(.borderedProminent)
+        content.buttonStyle(.borderedProminent).tint(Color(nsColor:.controlAccentColor))
         #endif
         }
     }
 }
 private struct PocketGlassButton: ViewModifier {
+    @Environment(\.isEnabled) private var enabled
     @Environment(\.accessibilityReduceTransparency) private var systemReduced
     @Environment(\.pocketTransparencyOverride) private var testReduced
     @ViewBuilder func body(content: Content) -> some View {
-        if testReduced ?? systemReduced { content.buttonStyle(.bordered) }
+        if testReduced ?? systemReduced { content.buttonStyle(.bordered).foregroundStyle(enabled ? Color.primary:Color.secondary) }
         else {
         #if compiler(>=6.2)
-        if #available(macOS 26.0, *) { content.buttonStyle(.glass) }
-        else { content.buttonStyle(.bordered) }
+        if #available(macOS 26.0, *) { content.buttonStyle(.glass).foregroundStyle(enabled ? Color.primary:Color.secondary) }
+        else { content.buttonStyle(.bordered).foregroundStyle(enabled ? Color.primary:Color.secondary) }
         #else
-        content.buttonStyle(.bordered)
+        content.buttonStyle(.bordered).foregroundStyle(enabled ? Color.primary:Color.secondary)
         #endif
         }
     }

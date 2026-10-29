@@ -1,4 +1,4 @@
-# Windows → macOS feature map (0.2.1)
+# Windows → macOS feature map (0.2.2)
 
 This map follows the Windows 0.1.4 usage guide. UI placement follows macOS conventions.
 

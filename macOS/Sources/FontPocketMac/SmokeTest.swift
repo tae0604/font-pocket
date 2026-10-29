@@ -57,7 +57,17 @@ import FontPocketCore
                 try await Task.sleep(nanoseconds: 700_000_000)
                 try await capture(name, output: output)
             }
+            model.testReduceTransparency=false;model.testReduceMotion=false;model.testAppearance = .dark;model.language="ko";model.page = .backup
+            try await Task.sleep(nanoseconds:500_000_000);try await capture("backup-dark-ko.png",output:output)
+            // Seed a deterministic progress presentation. Actual ZIP progress and
+            // cancellation are separately exercised by BackupProgressTests.
+            model.busy=true;model.taskName="폰트 백업 중…";model.workProgress=WorkProgress(.archiving,completed:3,total:5)
+            try await Task.sleep(nanoseconds:400_000_000);try await capture("backup-progress-dark-ko.png",output:output)
+            model.busy=false;model.workProgress=nil;model.page = .manager
             try await FontBackup.create(files: [installed.file], destination: URL(fileURLWithPath: output).appendingPathComponent("smoke-backup.zip"))
+            model.loadFontBackup(URL(fileURLWithPath:output).appendingPathComponent("smoke-backup.zip"));try await wait(model)
+            guard model.page == .install,!model.checked.isEmpty,model.queue.allSatisfy({model.checked.contains($0.id)}) else{throw PocketError("Backup installation queue did not select the restored fonts")}
+            model.page = .manager
             // Exercise the packaged WKWebView + WebAssembly codec, not a mock.
             let web=model.workspace.appendingPathComponent("roundtrip.woff2")
             let encoded=try await WebFontCodec.convert(installed.file,decompress:false)

@@ -1,4 +1,4 @@
-# Font Pocket for macOS — 0.2.1
+# Font Pocket for macOS — 0.2.2
 
 [한국어](README.ko.md) · [Windows → macOS feature map](FEATURE_PARITY.md)
 
@@ -6,7 +6,7 @@ Native SwiftUI font downloader and manager for macOS 13 Ventura and later. The u
 
 ## Open
 
-Download a successful **Build Font Pocket for macOS** artifact from the **codex/macos-native** branch. Extract the artifact, then extract **FontPocket-macOS-0.2.1-universal.zip** in Finder and open **Font Pocket.app**. ZIP preview inside a chat/editor does not launch an app.
+Download a successful **Build Font Pocket for macOS** artifact from the **codex/macos-native** branch. Extract the artifact, then extract **FontPocket-macOS-0.2.2-universal.zip** in Finder and open **Font Pocket.app**. ZIP preview inside a chat/editor does not launch an app.
 
 This development build has an ad-hoc code signature. Apple Developer ID signing and notarization have not been performed.
 

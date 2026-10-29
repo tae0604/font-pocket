@@ -43,6 +43,8 @@ struct DownloadRequest: Identifiable { let id = UUID(); let candidates: [Downloa
     @Published var previewText = "다람쥐 헌 쳇바퀴에 타고파 0123456789\nThe quick brown fox jumps over the lazy dog."
     @Published var previewSize = 32.0
     @Published var busy = false
+    @Published var workProgress: WorkProgress?
+    @Published var stopping = false
     @Published var taskName = ""
     @Published var status = ""
     @Published var error: String?
@@ -61,6 +63,7 @@ struct DownloadRequest: Identifiable { let id = UUID(); let candidates: [Downloa
     private var cachedSelected:[FontFace]?
     private func invalidateFontFilter(){cachedVisible=nil;cachedSelected=nil}
     private var job: Task<Void, Never>?
+    private var workID: UUID?
     private var chooser: CheckedContinuation<[DownloadCandidate], Never>?
     private var pendingFiles: [URL] = []
 
@@ -112,9 +115,11 @@ struct DownloadRequest: Identifiable { let id = UUID(); let candidates: [Downloa
     }
     func perform(_ title: String, action: @escaping @MainActor () async throws -> Void) {
         guard !busy else { return }
+        workID=UUID();workProgress=nil;stopping=false
         busy = true; taskName = title; status = title
         job = Task {
             defer {
+                workID=nil;workProgress=nil;stopping=false
                 busy = false; taskName = ""; job = nil
                 if !pendingFiles.isEmpty { let files = pendingFiles; pendingFiles = []; addFiles(files) }
             }
@@ -125,6 +130,7 @@ struct DownloadRequest: Identifiable { let id = UUID(); let candidates: [Downloa
         }
     }
     func cancel() {
+        stopping=true
         pendingFiles = []
         finishChoices([])
         job?.cancel()
@@ -158,7 +164,7 @@ struct DownloadRequest: Identifiable { let id = UUID(); let candidates: [Downloa
             try await self.importIntoQueue(urls)
         }
     }
-    private func importIntoQueue(_ urls: [URL]) async throws {
+    @discardableResult private func importIntoQueue(_ urls: [URL]) async throws -> [FontFace] {
         let imported = try await importer.read(urls)
         let known = Set(queue.map(\.id))
         let added = imported.filter { !known.contains($0.id) }
@@ -170,6 +176,7 @@ struct DownloadRequest: Identifiable { let id = UUID(); let candidates: [Downloa
         }
         if queueSelection.isEmpty, let first = queue.first { queueSelection = [first.id] }
         record(t("폰트 \(added.count)개를 대기열에 추가했습니다.", "Added \(added.count) fonts to the queue."))
+        return imported
     }
     func preferredImport(_ face:FontFace)->Bool{
         if ["TTC","OTC"].contains(face.format){if !includeTTC{return false}}
@@ -240,6 +247,7 @@ struct DownloadRequest: Identifiable { let id = UUID(); let candidates: [Downloa
             do {
                 for (index, file) in files.enumerated() {
                     try Task.checkCancellation()
+                    self.workProgress=WorkProgress(.installing,completed:index,total:files.count)
                     self.status = self.t("설치 중", "Installing") + " \(index + 1) / \(files.count)"
                     do {
                         let versions = try await self.vault.capture(file)
@@ -265,6 +273,7 @@ struct DownloadRequest: Identifiable { let id = UUID(); let candidates: [Downloa
                         self.queue.removeAll { done.contains($0.id) }
                         self.checked.subtract(done)
                         self.queueSelection.subtract(done)
+                        self.workProgress=WorkProgress(.installing,completed:index+1,total:files.count)
                     } catch is CancellationError { throw CancellationError() }
                     catch { failures.append(error.localizedDescription) }
                 }
@@ -303,7 +312,7 @@ struct DownloadRequest: Identifiable { let id = UUID(); let candidates: [Downloa
         perform(t("폰트 삭제 중…", "Removing fonts…")) {
             let recovery=self.dataRoot.appendingPathComponent("Removed")
             try FileManager.default.createDirectory(at:recovery,withIntermediateDirectories:true)
-            try await FontBackup.create(files:selected.map(\.file),destination:recovery.appendingPathComponent(UUID().uuidString+".zip"))
+            try await FontBackup.create(files:selected.map(\.file),destination:recovery.appendingPathComponent(UUID().uuidString+".zip"),progress:self.progressHandler())
             do { for key in keys { try await self.repository.trash(key) } }
             catch { await self.reloadAfterMutation(); throw error }
             try await self.reload()
@@ -317,7 +326,7 @@ struct DownloadRequest: Identifiable { let id = UUID(); let candidates: [Downloa
         panel.nameFieldStringValue = "FontPocket-Backup-" + Date().formatted(.iso8601.year().month().day().dateSeparator(.dash)) + ".zip"
         guard panel.runModal() == .OK, let destination = panel.url else { return }
         perform(t("폰트 백업 중…", "Backing up fonts…")) {
-            try await FontBackup.create(files: files, destination: destination)
+            try await FontBackup.create(files: files, destination: destination, progress:self.progressHandler())
             self.record(self.t("백업을 저장했습니다.", "Backup saved."))
             NSWorkspace.shared.activateFileViewerSelecting([destination])
         }
@@ -326,5 +335,47 @@ struct DownloadRequest: Identifiable { let id = UUID(); let candidates: [Downloa
         var updated=personal
         for face in selectedFonts {var entry=updated.annotations[face.id] ?? FontAnnotation();entry.favorite.toggle();updated.annotations[face.id]=entry}
         savePersonal(updated)
+    }
+    func progressHandler() -> ProgressHandler {
+        let identifier=workID
+        return {[weak self] value in
+            Task{@MainActor in
+                guard let self,self.busy,!self.stopping,self.workID==identifier else{return}
+                if let current=self.workProgress{
+                    guard value.phaseOrder>=current.phaseOrder else{return}
+                    if value.phase==current.phase && value.completed<current.completed{return}
+                }
+                self.workProgress=value
+            }
+        }
+    }
+    var progressStatus: String {
+        guard !stopping,let progress=workProgress else{return status}
+        switch progress.phase {
+        case .preparing:return t("백업 파일 확인 중…","Preparing backup…")
+        case .archiving:return t("백업 압축 중…","Compressing backup…")
+        case .verifying:return t("백업 검사·저장 중…","Verifying and saving backup…")
+        case .installing:return t("폰트 설치 중…","Installing fonts…")
+        case .complete:return t("완료","Complete")
+        }
+    }
+    func openFontBackup() {
+        guard !busy else{return}
+        let panel=NSOpenPanel();panel.allowedContentTypes=[.zip]
+        panel.message=t("폰트 백업 ZIP을 선택하세요. 설치 화면에서 확인한 뒤 설치합니다.","Choose a font backup ZIP. Review its fonts on the installation screen before installing.")
+        panel.prompt=t("백업 불러오기","Open backup")
+        if panel.runModal() == .OK,let url=panel.url{loadFontBackup(url)}
+    }
+    func loadFontBackup(_ url: URL) {
+        perform(t("백업한 폰트 읽는 중…","Reading font backup…")) {
+            let inspection=Task.detached{try ArchivePolicy.validate(Data(contentsOf:url,options:.mappedIfSafe))}
+            let names=try await withTaskCancellationHandler(operation:{try await inspection.value},onCancel:{inspection.cancel()})
+            guard !names.contains("fontpocketenvironment/manifest.json") else{throw PocketError(self.t("환경 백업입니다. 도구의 환경 복원을 사용하세요.","This is an environment backup. Use Restore environment in Library tools."))}
+            let imported=try await self.importIntoQueue([url])
+            self.checked=Set(imported.map(\.id))
+            self.queueSelection=Set(imported.prefix(1).map(\.id))
+            self.page = .install
+            self.record(self.t("백업 폰트 \(imported.count)개를 불러왔습니다. 확인 후 선택한 폰트 설치를 누르세요.","Loaded \(imported.count) backed-up fonts. Review them, then choose Install checked fonts."))
+        }
     }
 }

@@ -43,7 +43,7 @@ jobs:
       - name: Upload macOS preview
         uses: actions/upload-artifact@v4
         with:
-          name: FontPocket-macOS-0.2.1-universal
+          name: FontPocket-macOS-0.2.2-universal
           path: |
             macOS/dist/*.zip
             macOS/dist/*.sha256

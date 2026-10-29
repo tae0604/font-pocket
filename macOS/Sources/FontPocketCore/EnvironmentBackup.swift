@@ -3,12 +3,12 @@ import Foundation
 public struct ProfileFont:Codable,Sendable{public let filename:String;public let hash:String;public let enabled:Bool}
 public struct EnvironmentManifest:Codable,Sendable{public let schema:Int;public let personal:PersonalDocument;public let fonts:[ProfileFont]}
 public enum EnvironmentBackup{
-    public static func create(repository:FontRepository,personal:PersonalLibrary,vault:VersionVault,destination:URL) async throws{
+    public static func create(repository:FontRepository,personal:PersonalLibrary,vault:VersionVault,destination:URL,progress:ProgressHandler?=nil) async throws{
         let fm=FileManager.default,stage=fm.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         let folder=stage.appendingPathComponent("FontPocketEnvironment"),files=folder.appendingPathComponent("Fonts"),versions=folder.appendingPathComponent("Versions")
-        let temp=destination.deletingLastPathComponent().appendingPathComponent(".FontPocket-\(UUID().uuidString).zip")
         try fm.createDirectory(at:files,withIntermediateDirectories:true);try fm.createDirectory(at:versions,withIntermediateDirectories:true)
-        defer{try? fm.removeItem(at:stage);try? fm.removeItem(at:temp)}
+        defer{try? fm.removeItem(at:stage)}
+        progress?(WorkProgress(.preparing))
         var records:[ProfileFont]=[],document=try await personal.read()
         for (record,file) in try await repository.backupSnapshot(){
             try Task.checkCancellation();try fm.copyItem(at:file,to:files.appendingPathComponent(record.filename));records.append(ProfileFont(filename:record.filename,hash:record.key,enabled:record.enabled))
@@ -18,9 +18,7 @@ public enum EnvironmentBackup{
         for version in try await vault.read() where seen.insert(version.filename).inserted{try Task.checkCancellation();try fm.copyItem(at:try await vault.file(version),to:versions.appendingPathComponent(version.filename))}
         let manifest=EnvironmentManifest(schema:1,personal:document,fonts:records)
         try JSONEncoder().encode(manifest).write(to:folder.appendingPathComponent("manifest.json"))
-        _ = try await ProcessRunner.run("/usr/bin/ditto",["-c","-k","--keepParent",folder.path,temp.path]);try Task.checkCancellation()
-        try ArchivePolicy.validate(Data(contentsOf:temp,options:.mappedIfSafe))
-        if fm.fileExists(atPath:destination.path){_ = try fm.replaceItemAt(destination,withItemAt:temp)}else{try fm.moveItem(at:temp,to:destination)}
+        try await BackupArchive.create(folder:folder,destination:destination,progress:progress)
     }
     public static func restore(_ archive:URL,repository:FontRepository,personal:PersonalLibrary,vault:VersionVault) async throws{
         let fm=FileManager.default,stage=fm.temporaryDirectory.appendingPathComponent(UUID().uuidString)

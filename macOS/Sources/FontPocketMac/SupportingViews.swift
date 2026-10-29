@@ -4,7 +4,19 @@ import FontPocketCore
 
 struct TaskControls:View{
     @EnvironmentObject var model:AppModel
-    var body:some View{HStack(spacing:12){ProgressView().controlSize(.small);Text(model.status).font(.caption).lineLimit(2);Spacer();Button(model.t("중지","Stop")){model.cancel()}}.padding(.horizontal,16).padding(.vertical,10).pocketFloatingSurface()}
+    var body:some View{
+        HStack(spacing:12){
+            if let fraction=model.workProgress?.fraction{ProgressView(value:fraction).frame(width:80).tint(Color(nsColor:.controlAccentColor))}
+            else{ProgressView().controlSize(.small)}
+            VStack(alignment:.leading,spacing:2){
+                Text(model.progressStatus).font(.caption).lineLimit(1)
+                if let progress=model.workProgress,let percent=progress.percent{
+                    HStack(spacing:8){Text("\(percent)%").fontWeight(.semibold);Text("\(progress.completed) / \(progress.total)").foregroundStyle(.secondary)}.font(.caption).monospacedDigit()
+                }
+            }
+            Button(model.t("중지","Stop")){model.cancel()}.pocketGlassButton().disabled(model.stopping)
+        }.padding(.horizontal,16).padding(.vertical,10).pocketFloatingSurface()
+    }
 }
 
 struct PreviewPane<Actions: View>: View {
@@ -197,7 +209,7 @@ struct SettingsView: View {
                 }
                 Section {
                     Link(model.t("업데이트·다운로드 확인", "Check releases and downloads"), destination: URL(string: "https://github.com/tae0604/font-pocket/releases")!)
-                    Text("Font Pocket for macOS · 0.2.1").font(.caption).foregroundStyle(.secondary)
+                    Text("Font Pocket for macOS · 0.2.2").font(.caption).foregroundStyle(.secondary)
                 }
             }.formStyle(.grouped)
             HStack {

@@ -63,7 +63,7 @@ struct MainView: View {
             Button { showSettings = true } label: {
                 Label(model.t("설정", "Settings"), systemImage: "gearshape").frame(maxWidth: .infinity, alignment: .leading)
             }.buttonStyle(.plain).padding(.horizontal, 20).padding(.vertical, 12)
-            Text("macOS 0.2.1").font(.caption).foregroundStyle(.secondary).padding(.horizontal, 20).padding(.bottom, 18)
+            Text("macOS 0.2.2").font(.caption).foregroundStyle(.secondary).padding(.horizontal, 20).padding(.bottom, 18)
         }
     }
     private func title(_ page: Page) -> String {
@@ -94,7 +94,12 @@ struct MainView: View {
             HStack {
                 Text(model.t("폰트 \(model.visibleFonts.count)개 · 선택 \(model.selectedFonts.count)개", "\(model.visibleFonts.count) \(model.visibleFonts.count == 1 ? "font" : "fonts") · \(model.selectedFonts.count) selected")).font(.caption).foregroundStyle(.secondary)
                 Spacer()
-                if model.page == .backup { Button(model.t("선택한 폰트 백업", "Back up selected fonts")) { model.backupSelected() }.disabled(model.selection.isEmpty || model.busy) }
+                if model.page == .backup {
+                    Button{model.openFontBackup()}label:{Label(model.t("백업한 폰트 설치","Install backed-up fonts"),systemImage:"archivebox")}
+                        .pocketGlassButton().disabled(model.busy).accessibilityIdentifier("install-font-backup")
+                    Button(model.t("선택한 폰트 백업", "Back up selected fonts")) { model.backupSelected() }
+                        .pocketPrimary().disabled(model.selectedFonts.isEmpty || model.busy).accessibilityIdentifier("backup-selected-fonts")
+                }
             }
             Table(model.visibleFonts, selection: $model.selection) {
                 TableColumn(model.t("글꼴 · 스타일", "Font · style")) { face in
@@ -168,11 +173,7 @@ struct MainView: View {
     private var footer: some View {
         HStack {
             if model.busy {
-                HStack(spacing: 12) {
-                    ProgressView().controlSize(.small)
-                    Text(model.status).font(.caption).lineLimit(1)
-                    Button(model.t("중지", "Stop")) { model.cancel() }.buttonStyle(.borderless)
-                }.padding(.horizontal, 16).padding(.vertical, 10).pocketFloatingSurface()
+                TaskControls().environmentObject(model)
             } else { Text(model.status).font(.caption).foregroundStyle(.secondary).lineLimit(2) }
             Spacer()
         }.frame(minHeight: 26)
