@@ -17,6 +17,7 @@ import FontPocketCore
             try FileManager.default.createDirectory(atPath: output, withIntermediateDirectories: true)
             for (language, filename) in [("ko", "install-ko.png"), ("en", "install-en.png")] {
                 model.language = language
+                model.previewText = language == "ko" ? "다람쥐 헌 쳇바퀴에 타고파 0123456789\nThe quick brown fox jumps over the lazy dog." : "The quick brown fox jumps over the lazy dog.\nA typeface for every idea."
                 try await Task.sleep(nanoseconds: 600_000_000)
                 try await capture(filename, output: output)
             }
@@ -31,6 +32,7 @@ import FontPocketCore
             model.page = .manager
             for (language, filename) in [("ko", "manager-ko.png"), ("en", "manager-en.png")] {
                 model.language = language
+                model.previewText = language == "ko" ? "다람쥐 헌 쳇바퀴에 타고파 0123456789\nThe quick brown fox jumps over the lazy dog." : "The quick brown fox jumps over the lazy dog.\nA typeface for every idea."
                 try await Task.sleep(nanoseconds: 700_000_000)
                 try await capture(filename, output: output)
             }

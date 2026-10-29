@@ -87,7 +87,7 @@ struct DownloadRequest: Identifiable { let id = UUID(); let candidates: [Downloa
     private func reload() async throws {
         fonts = try await repository.library(includeSystem: showSystem)
         selection.formIntersection(Set(fonts.map(\.id)))
-        status = t("폰트 \(fonts.count)개", "\(fonts.count) fonts")
+        status = t("폰트 \(fonts.count)개", "\(fonts.count) \(fonts.count == 1 ? "font" : "fonts")")
     }
     func openFiles() {
         guard !busy else { return }

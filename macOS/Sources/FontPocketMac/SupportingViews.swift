@@ -21,8 +21,17 @@ struct PreviewPane<Actions: View>: View {
                     Stepper("", value: $model.previewSize, in: 10...120, step: 2).labelsHidden()
                 }.frame(width: 70)
             }
-            ScrollView([.vertical, .horizontal]) {
-                if let face { Text(model.previewText).font(Font(face.previewFont(size: model.previewSize))).textSelection(.enabled).frame(maxWidth: .infinity, alignment: .leading) }
+            ScrollViewReader { proxy in
+                ScrollView(.vertical) {
+                    if let face {
+                        Text(model.previewText).font(Font(face.previewFont(size: model.previewSize)))
+                            .textSelection(.enabled).multilineTextAlignment(.leading)
+                            .frame(maxWidth: .infinity, alignment: .topLeading)
+                            .fixedSize(horizontal: false, vertical: true).padding(.vertical, 4).id("preview-top")
+                    }
+                }
+                .onAppear { proxy.scrollTo("preview-top", anchor: .top) }
+                .onChange(of: face?.id) { _ in proxy.scrollTo("preview-top", anchor: .top) }
             }.frame(maxWidth: .infinity, maxHeight: .infinity)
         }.padding(16).background(Color(nsColor: .textBackgroundColor), in: RoundedRectangle(cornerRadius: 12))
     }
@@ -60,7 +69,7 @@ struct InstallView: View {
                 TableColumn(model.t("크기", "Size")) { face in Text(ByteCountFormatter.string(fromByteCount: face.bytes, countStyle: .file)) }.width(80)
             }.clipShape(RoundedRectangle(cornerRadius: 6))
             HStack {
-                Text(model.t("\(model.checked.count)개 선택 / \(model.queue.count)개", "\(model.checked.count) selected / \(model.queue.count) fonts")).font(.caption).foregroundStyle(.secondary)
+                Text(model.t("\(model.checked.count)개 선택 / \(model.queue.count)개", "\(model.checked.count) selected / \(model.queue.count) \(model.queue.count == 1 ? "font" : "fonts")")).font(.caption).foregroundStyle(.secondary)
                 Spacer()
                 Button(model.t("선택한 폰트 설치", "Install checked fonts")) { model.installChecked() }.pocketPrimary().disabled(model.busy || model.checked.isEmpty)
             }
