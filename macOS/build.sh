@@ -8,7 +8,7 @@ swift build -c release --arch arm64 --arch x86_64
 BIN="$(swift build -c release --arch arm64 --arch x86_64 --show-bin-path)"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 cp "$BIN/FontPocket" "$APP/Contents/MacOS/FontPocket"
-find "$BIN" -maxdepth 1 -name '*.bundle' -exec cp -R '{}' "$APP/" \;
+find "$BIN" -maxdepth 1 -name '*.bundle' -exec cp -R '{}' "$APP/Contents/Resources/" \;
 cp Sources/FontPocketMac/Resources/FontPocket-logo.png "$APP/Contents/Resources/FontPocket-logo.png"
 ICONSET="$(mktemp -d)/FontPocket.iconset"
 mkdir -p "$ICONSET"

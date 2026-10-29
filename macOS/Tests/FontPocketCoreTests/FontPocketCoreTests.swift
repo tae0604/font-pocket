@@ -31,6 +31,15 @@ final class FontPocketCoreTests: XCTestCase {
         XCTAssertEqual(links.first?.0.absoluteString, "https://example.com/releases/font.zip?a=1&b=2")
         XCTAssertEqual(links.first?.1, "Download TTF")
     }
+    func testUserScopeCoreTextRegistrationOnHostedMac() throws {
+        guard ProcessInfo.processInfo.environment["FONTPOCKET_LIVE_CORETEXT_TEST"] == "1" else {
+            throw XCTSkip("User-wide temporary registration is only enabled on the disposable CI Mac.")
+        }
+        let file = try fixture(), registration = CoreTextRegistration()
+        try registration.register(file)
+        defer { try? registration.unregister(file) }
+        try registration.unregister(file)
+    }
     func testTraversalPathsRejected() {
         for path in ["../font.ttf", "/font.ttf", "a/../../font.ttf", "a\\font.ttf", "C:font.ttf", "a\nfont.ttf"] { XCTAssertFalse(ArchivePolicy.safePath(path), path) }
         XCTAssertTrue(ArchivePolicy.safePath("ttf/견본.ttf"))
