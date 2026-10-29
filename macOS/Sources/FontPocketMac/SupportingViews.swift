@@ -115,7 +115,8 @@ struct DetailsView: View {
     @EnvironmentObject var model: AppModel
     @Environment(\.dismiss) var dismiss
     let face: FontFace
-    var body: some View {
+    var body: some View { AdvancedDetailsView(face:face).environmentObject(model) }
+    private var originalBody: some View {
         VStack(alignment: .leading, spacing: 18) {
             HStack {
                 VStack(alignment: .leading, spacing: 4) {

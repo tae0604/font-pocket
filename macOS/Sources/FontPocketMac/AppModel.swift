@@ -1,6 +1,7 @@
 import SwiftUI
 import AppKit
 import UniformTypeIdentifiers
+import CoreText
 import FontPocketCore
 
 enum Page: String, CaseIterable, Identifiable { case manager, install, backup, activity; var id: String { rawValue } }
@@ -17,6 +18,17 @@ struct DownloadRequest: Identifiable { let id = UUID(); let candidates: [Downloa
     @Published var search = ""
     @Published var showSystem = false
     @Published var onlyFavorites = false
+    @Published var personal = PersonalDocument()
+    @Published var activeCollection: UUID?
+    @Published var formatFilter = ""
+    @Published var stateFilter = ""
+    @Published var languageFilter = ""
+    @Published var variableOnly = false
+    @Published var groupFamilies = false
+    @Published var quickSearch = false
+    @Published var tools = false
+    let personalStore: PersonalLibrary
+    let vault: VersionVault
     @Published var links = ""
     @Published var previewText = "다람쥐 헌 쳇바퀴에 타고파 0123456789\nThe quick brown fox jumps over the lazy dog."
     @Published var previewSize = 32.0
@@ -43,16 +55,31 @@ struct DownloadRequest: Identifiable { let id = UUID(); let candidates: [Downloa
         language = UserDefaults.standard.string(forKey: "language") ?? (Locale.preferredLanguages.first?.hasPrefix("ko") == true ? "ko" : "en")
         favorites = Set(UserDefaults.standard.stringArray(forKey: "favorites") ?? [])
         workspace = FileManager.default.temporaryDirectory.appendingPathComponent("FontPocket-Mac-\(UUID().uuidString)")
+        let dataRoot = ProcessInfo.processInfo.environment["FONTPOCKET_MAC_TEST_ROOT"].map{URL(fileURLWithPath:$0).appendingPathComponent("Personal")} ?? LibraryPaths.live.root
+        personalStore = try PersonalLibrary(root:dataRoot)
+        vault = try VersionVault(root:dataRoot.appendingPathComponent("Versions"))
         if let root = ProcessInfo.processInfo.environment["FONTPOCKET_MAC_TEST_ROOT"] {
             let folder = URL(fileURLWithPath: root)
             repository = try FontRepository(paths: LibraryPaths(root: folder.appendingPathComponent("Catalog"), fonts: folder.appendingPathComponent("Fonts")))
         } else { repository = try FontRepository() }
-        importer = try FontImporter(workspace: workspace)
+        importer = try FontImporter(workspace: workspace, converter: { url,folder in try await WebFontCodec.prepare(url,folder:folder) })
         if language == "en" { previewText = "The quick brown fox jumps over the lazy dog.\nA typeface for every idea." }
     }
     func t(_ ko: String, _ en: String) -> String { language == "ko" ? ko : en }
     var visibleFonts: [FontFace] {
-        fonts.filter { (search.isEmpty || $0.title.localizedCaseInsensitiveContains(search) || $0.format.localizedCaseInsensitiveContains(search)) && (!onlyFavorites || favorites.contains($0.id)) }
+        let filtered = fonts.filter { face in
+            let annotation=personal.annotations[face.id] ?? FontAnnotation()
+            let terms=face.title+" "+face.format+" "+face.file.lastPathComponent+" "+annotation.note+" "+annotation.tags.joined(separator:" ")
+            if !search.isEmpty && !terms.localizedCaseInsensitiveContains(search){return false}
+            if onlyFavorites && !favorites.contains(face.id) && !annotation.favorite{return false}
+            if !formatFilter.isEmpty && face.format != formatFilter{return false}
+            if !stateFilter.isEmpty && face.state.rawValue != stateFilter{return false}
+            if variableOnly && !face.isVariable{return false}
+            if let id=activeCollection,let collection=personal.collections.first(where:{$0.id==id}),!collection.contains(face,annotation:annotation){return false}
+            if !languageFilter.isEmpty,let range=FontAnalysis.ranges.first(where:{$0.0==languageFilter})?.1{let charset=CTFontCopyCharacterSet(face.previewFont(size:12));if !range.contains(where:{CFCharacterSetIsLongCharacterMember(charset,$0)}){return false}}
+            return true
+        }
+        return groupFamilies ? filtered.sorted{$0.family==$1.family ? $0.weight < $1.weight : $0.family.localizedStandardCompare($1.family) == .orderedAscending} : filtered
     }
     var selectedFonts: [FontFace] { fonts.filter { selection.contains($0.id) } }
     var selectedQueue: [FontFace] { queue.filter { queueSelection.contains($0.id) } }
@@ -62,7 +89,7 @@ struct DownloadRequest: Identifiable { let id = UUID(); let candidates: [Downloa
         if activity.count > 200 { activity.removeLast(activity.count-200) }
         status = text
     }
-    private func perform(_ title: String, action: @escaping @MainActor () async throws -> Void) {
+    func perform(_ title: String, action: @escaping @MainActor () async throws -> Void) {
         guard !busy else { return }
         busy = true; taskName = title; status = title
         job = Task {
@@ -85,6 +112,7 @@ struct DownloadRequest: Identifiable { let id = UUID(); let candidates: [Downloa
     func cleanup() { try? FileManager.default.removeItem(at: workspace) }
     func refresh() { perform(t("폰트 목록 읽는 중…", "Reading fonts…")) { try await self.reload() } }
     private func reload() async throws {
+        personal = try await personalStore.read()
         fonts = try await repository.library(includeSystem: showSystem)
         selection.formIntersection(Set(fonts.map(\.id)))
         status = t("폰트 \(fonts.count)개", "\(fonts.count) \(fonts.count == 1 ? "font" : "fonts")")
@@ -93,7 +121,7 @@ struct DownloadRequest: Identifiable { let id = UUID(); let candidates: [Downloa
         guard !busy else { return }
         let panel = NSOpenPanel()
         panel.allowsMultipleSelection = true; panel.canChooseDirectories = true
-        panel.allowedContentTypes = ["ttf","otf","ttc","otc","zip"].compactMap { UTType(filenameExtension: $0) }
+        panel.allowedContentTypes = ["ttf","otf","ttc","otc","zip","woff","woff2","sfnt"].compactMap { UTType(filenameExtension: $0) }
         panel.prompt = t("추가", "Add")
         if panel.runModal() == .OK { addFiles(panel.urls) }
     }
@@ -164,7 +192,10 @@ struct DownloadRequest: Identifiable { let id = UUID(); let candidates: [Downloa
                 try Task.checkCancellation()
                 self.status = self.t("설치 중", "Installing") + " \(index+1) / \(files.count)"
                 do {
-                    if try await self.repository.install(file) { count += 1 }
+                    _ = try await self.vault.capture(file)
+                    let incoming=try FontReader.faces(file)
+                    let overlaps=self.fonts.contains{old in (old.state == .enabled || old.state == .external) && incoming.contains{$0.postScript==old.postScript}}
+                    if !overlaps,try await self.repository.install(file) { count += 1 }
                     let done = Set(self.queue.filter { $0.file == file }.map(\.id))
                     self.queue.removeAll { done.contains($0.id) }; self.checked.subtract(done); self.queueSelection.subtract(done)
                 } catch is CancellationError { throw CancellationError() }

@@ -30,6 +30,7 @@ import AppKit
             CommandGroup(replacing: .newItem) {
                 Button(model.t("폰트 추가…", "Add Fonts…")) { model.openFiles() }.keyboardShortcut("o").disabled(model.busy)
             }
+            CommandGroup(after:.newItem){Button(model.t("빠른 검색","Quick search")){model.quickSearch=true}.keyboardShortcut("k");Button(model.t("라이브러리 도구","Library tools")){model.tools=true}.keyboardShortcut("l",modifiers:[.command,.shift])}
         }
         Settings { SettingsView().environmentObject(model).frame(width: 480, height: 380) }
     }

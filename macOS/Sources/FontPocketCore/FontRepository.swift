@@ -72,6 +72,21 @@ public actor FontRepository {
     private func persist() throws {
         try JSONEncoder().encode(records).write(to: paths.catalog, options: .atomic)
     }
+    public func snapshot() throws -> [(OwnedFont,URL)] {
+        try records.map { record in let (_,checked,file)=try owned(record.key);return (checked,file) }
+    }
+    public func switchVersion(_ file:URL,postScript:String) throws {
+        let previously=try library(includeSystem:false).filter{$0.postScript==postScript && $0.state == .enabled}.compactMap(\.managedKey)
+        let hash=try FontReader.hash(file)
+        if previously.contains(hash){return}
+        do{
+            for key in Set(previously){try setEnabled(key,enabled:false)}
+            if records.contains(where:{$0.key==hash}){try setEnabled(hash,enabled:true)}else{_ = try install(file)}
+        }catch{
+            for key in Set(previously){try? setEnabled(key,enabled:true)}
+            throw error
+        }
+    }
     private func owned(_ key: String) throws -> (Int, OwnedFont, URL) {
         guard let index = records.firstIndex(where: { $0.key == key }) else { throw PocketError("This font is read-only.") }
         let record = records[index], url = location(record)

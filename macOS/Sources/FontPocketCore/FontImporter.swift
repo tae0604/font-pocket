@@ -66,9 +66,12 @@ public enum ArchivePolicy {
 }
 
 public actor FontImporter {
+    public static let supported = FontReader.extensions.union(["woff","woff2","sfnt"])
     public let workspace: URL
-    public init(workspace: URL) throws {
+    private let converter: (@Sendable (URL,URL) async throws -> URL)?
+    public init(workspace: URL, converter: (@Sendable (URL,URL) async throws -> URL)? = nil) throws {
         self.workspace = workspace
+        self.converter = converter
         try FileManager.default.createDirectory(at: workspace, withIntermediateDirectories: true)
     }
     public func read(_ urls: [URL]) async throws -> [FontFace] {
@@ -78,6 +81,7 @@ public actor FontImporter {
             let scoped = url.startAccessingSecurityScopedResource(); defer { if scoped { url.stopAccessingSecurityScopedResource() } }
             for file in try await expand(url) {
                 try Task.checkCancellation()
+                let file = try await converter?(file,workspace) ?? file
                 let digest = try FontReader.hash(file)
                 if !seen.insert(digest).inserted { continue }
                 // Own a copy so originals can be moved without breaking the installation queue.
@@ -111,7 +115,7 @@ public actor FontImporter {
             guard !copies.isEmpty else { throw PocketError("No TTF, OTF, TTC or OTC fonts were found in this ZIP.") }
             return copies
         }
-        guard FontReader.extensions.contains(url.pathExtension.lowercased()) else {
+        guard Self.supported.contains(url.pathExtension.lowercased()) else {
             throw PocketError("Use TTF, OTF, TTC, OTC, ZIP files or folders. Web fonts need desktop-font downloads.")
         }
         return [url]
@@ -124,7 +128,7 @@ public actor FontImporter {
             let values = try file.resourceValues(forKeys: [.isSymbolicLinkKey, .isRegularFileKey])
             if values.isSymbolicLink == true { enumerator.skipDescendants(); continue }
             if file.pathComponents.contains("__MACOSX") { enumerator.skipDescendants(); continue }
-            if values.isRegularFile == true && FontReader.extensions.contains(file.pathExtension.lowercased()) { result.append(file) }
+            if values.isRegularFile == true && Self.supported.contains(file.pathExtension.lowercased()) { result.append(file) }
             guard result.count <= 2048 else { throw PocketError("Import up to 2,048 font files at a time.") }
         }
         return result.sorted { $0.path < $1.path }

@@ -29,7 +29,9 @@ struct MainView: View {
         .tint(brand)
         .sheet(isPresented: $showSettings) { SettingsView().environmentObject(model).frame(width: 480, height: 380) }
         .sheet(isPresented: $showDetails) { if let face = model.preview { DetailsView(face: face).environmentObject(model) } }
-        .sheet(isPresented: $showComparison) { ComparisonView(faces: Array(model.selectedFonts.prefix(4))).environmentObject(model) }
+        .sheet(isPresented: $showComparison) { ComparisonView(faces: Array(model.selectedFonts.prefix(12))).environmentObject(model) }
+        .sheet(isPresented:$model.quickSearch){QuickSearchView().environmentObject(model)}
+        .sheet(isPresented:$model.tools){LibraryToolsView().environmentObject(model)}
         .sheet(item: $model.downloadRequest) { request in DownloadPicker(request: request).environmentObject(model).interactiveDismissDisabled() }
         .alert(model.t("작업을 완료하지 못했습니다", "Could not complete the task"), isPresented: Binding(get: { model.error != nil }, set: { if !$0 { model.error = nil } })) {
             Button(model.t("확인", "OK")) { model.error = nil }
@@ -125,6 +127,11 @@ struct MainView: View {
             if model.page == .manager || model.page == .backup {
                 Button { model.refresh() } label: { Label(model.t("새로고침", "Refresh"), systemImage: "arrow.clockwise") }.disabled(model.busy)
                 Menu {
+                    Picker(model.t("형식","Format"),selection:$model.formatFilter){Text(model.t("전체","All")).tag("");ForEach(["TTF","OTF","TTC","OTC"],id:\.self){Text($0).tag($0)}}
+                    Picker(model.t("상태","State"),selection:$model.stateFilter){Text(model.t("전체","All")).tag("");Text(model.t("사용 중","Enabled")).tag("enabled");Text(model.t("사용 중지","Disabled")).tag("disabled")}
+                    Picker(model.t("문자 범위","Script"),selection:$model.languageFilter){Text(model.t("전체","All")).tag("");ForEach(FontAnalysis.ranges,id:\.0){Text($0.0).tag($0.0)}}
+                    Toggle(model.t("가변만","Variable only"),isOn:$model.variableOnly)
+                    Toggle(model.t("패밀리 순서","Group families"),isOn:$model.groupFamilies)
                     Toggle(model.t("시스템 폰트 표시", "Show system fonts"), isOn: $model.showSystem)
                     Toggle(model.t("즐겨찾기만", "Favorites only"), isOn: $model.onlyFavorites)
                 } label: { Label(model.t("필터", "Filters"), systemImage: "line.3.horizontal.decrease") }
@@ -132,9 +139,16 @@ struct MainView: View {
                 Menu { contextActions } label: { Label(model.t("관리", "Manage"), systemImage: "ellipsis") }.disabled(model.selection.isEmpty || model.busy)
             }
             Button { model.page = .install; model.openFiles() } label: { Label(model.t("폰트 추가", "Add fonts"), systemImage: "plus") }.disabled(model.busy)
+            Button{model.tools=true}label:{Label(model.t("도구","Tools"),systemImage:"slider.horizontal.3")}
         }
     }
     @ViewBuilder private var contextActions: some View {
+        Button(model.t("메모·태그·모음·버전 관리","Notes, tags, collections and versions")){model.tools=true}
+        Button(model.t("버전으로 보관","Archive version")){model.archiveSelection()}.disabled(model.selection.isEmpty || model.busy)
+        Button(model.t("전체 견본·인쇄·중복 검사","Catalog, print and duplicates")){model.tools=true}
+        Button(model.t("환경 백업","Back up environment")){model.profileBackup()}.disabled(model.busy)
+        Button(model.t("환경 복원","Restore environment")){model.profileRestore()}.disabled(model.busy)
+        Button(model.t("삭제 폰트 복원","Restore removed fonts")){model.restoreDeleted()}.disabled(model.busy)
         Button(model.t("상세 정보", "Details")) { showDetails = true }.disabled(model.preview == nil)
         Button(model.t("비교", "Compare")) { showComparison = true }.disabled(model.selectedFonts.count < 2)
         Button(model.t("즐겨찾기 전환", "Toggle favorite")) { model.toggleFavorites() }.disabled(model.selection.isEmpty)
