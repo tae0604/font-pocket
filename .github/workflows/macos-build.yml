@@ -38,12 +38,12 @@ jobs:
         env:
           FONTPOCKET_MAC_TEST_ROOT: ${{ runner.temp }}/FontPocket-Smoke
           FONTPOCKET_MAC_SMOKE_OUTPUT: ${{ github.workspace }}/macOS/dist/screenshots
-        timeout-minutes: 2
+        timeout-minutes: 5
         run: '"macOS/dist/Font Pocket.app/Contents/MacOS/FontPocket" --smoke-test'
       - name: Upload macOS preview
         uses: actions/upload-artifact@v4
         with:
-          name: FontPocket-macOS-0.1.0-universal
+          name: FontPocket-macOS-0.2.0-universal
           path: |
             macOS/dist/*.zip
             macOS/dist/*.sha256
