@@ -1,31 +1,50 @@
 import SwiftUI
 
+private struct PocketTransparencyOverride: EnvironmentKey { static let defaultValue: Bool? = nil }
+extension EnvironmentValues {
+    var pocketTransparencyOverride: Bool? {
+        get { self[PocketTransparencyOverride.self] }
+        set { self[PocketTransparencyOverride.self] = newValue }
+    }
+}
+
 // Real system Liquid Glass on macOS Tahoe. The compiler gate also permits
 // building the native-material fallback with older Xcode / SDK installations.
 private struct PocketPrimary: ViewModifier {
+    @Environment(\.accessibilityReduceTransparency) private var systemReduced
+    @Environment(\.pocketTransparencyOverride) private var testReduced
     @ViewBuilder func body(content: Content) -> some View {
+        if testReduced ?? systemReduced { content.buttonStyle(.borderedProminent) }
+        else {
         #if compiler(>=6.2)
         if #available(macOS 26.0, *) { content.buttonStyle(.glassProminent) }
         else { content.buttonStyle(.borderedProminent) }
         #else
         content.buttonStyle(.borderedProminent)
         #endif
+        }
     }
 }
 private struct PocketGlassButton: ViewModifier {
+    @Environment(\.accessibilityReduceTransparency) private var systemReduced
+    @Environment(\.pocketTransparencyOverride) private var testReduced
     @ViewBuilder func body(content: Content) -> some View {
+        if testReduced ?? systemReduced { content.buttonStyle(.bordered) }
+        else {
         #if compiler(>=6.2)
         if #available(macOS 26.0, *) { content.buttonStyle(.glass) }
         else { content.buttonStyle(.bordered) }
         #else
         content.buttonStyle(.bordered)
         #endif
+        }
     }
 }
 private struct PocketFloatingSurface: ViewModifier {
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+    @Environment(\.pocketTransparencyOverride) private var testReduced
     @ViewBuilder func body(content: Content) -> some View {
-        if reduceTransparency {
+        if testReduced ?? reduceTransparency {
             content.background(Color(nsColor: .controlBackgroundColor), in: Capsule())
         } else {
         #if compiler(>=6.2)

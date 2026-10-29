@@ -39,8 +39,8 @@ struct SmokeAccessibility: ViewModifier {
     @ObservedObject var model: AppModel
     @ViewBuilder func body(content: Content) -> some View {
         if ProcessInfo.processInfo.environment["FONTPOCKET_MAC_TEST_ROOT"] != nil {
-            content.environment(\.accessibilityReduceTransparency, model.testReduceTransparency)
-                .environment(\.accessibilityReduceMotion, model.testReduceMotion)
+            content.environment(\.pocketTransparencyOverride, model.testReduceTransparency)
+                .transaction { if model.testReduceMotion { $0.disablesAnimations = true } }
                 .preferredColorScheme(model.testAppearance)
         } else { content }
     }
