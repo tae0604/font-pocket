@@ -1,4 +1,5 @@
 import Foundation
+import Darwin
 
 public struct WorkProgress: Sendable, Equatable {
     public enum Phase: String, Sendable { case preparing, archiving, verifying, installing, complete }
@@ -70,13 +71,23 @@ public enum BackupArchive {
         guard !paths.isEmpty else{throw PocketError("No files to back up")}
         let reporter=ArchiveProgress(paths:paths,report:progress)
         progress?(WorkProgress(.archiving,total:paths.count))
-        _ = try await ProcessRunner.run("/usr/bin/zip",["-r","-UN=UTF8",temporary.path,folder.lastPathComponent],
-            directory:folder.deletingLastPathComponent(),onLine:{reporter.consume($0)})
+        let output: String
+        do {
+            output = try await ProcessRunner.run("/usr/bin/zip",["-r","-UN=UTF8",temporary.path,folder.lastPathComponent],
+                directory:folder.deletingLastPathComponent(),onLine:{reporter.consume($0)})
+        } catch is CancellationError { throw CancellationError() }
+        catch { throw PocketError("ZIP compression: \(error.localizedDescription)") }
         try Task.checkCancellation()
+        guard fm.fileExists(atPath:temporary.path) else{throw PocketError("ZIP output missing: "+output)}
         progress?(WorkProgress(.verifying,completed:paths.count,total:paths.count))
         try ArchivePolicy.validate(Data(contentsOf:temporary,options:.mappedIfSafe))
         try Task.checkCancellation()
-        if fm.fileExists(atPath:destination.path){_ = try fm.replaceItemAt(destination,withItemAt:temporary)}else{try fm.moveItem(at:temporary,to:destination)}
+        // Both paths share a parent/filesystem. POSIX rename replaces a previous
+        // backup atomically and never follows a destination symlink.
+        let result=temporary.withUnsafeFileSystemRepresentation{source in
+            destination.withUnsafeFileSystemRepresentation{target in Darwin.rename(source!,target!)}
+        }
+        guard result==0 else{throw POSIXError(POSIXErrorCode(rawValue:errno) ?? .EIO)}
         progress?(WorkProgress(.complete,completed:paths.count,total:paths.count))
     }
 }

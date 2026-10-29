@@ -338,9 +338,10 @@ struct DownloadRequest: Identifiable { let id = UUID(); let candidates: [Downloa
     }
     func progressHandler() -> ProgressHandler {
         let identifier=workID
-        return {[weak self] value in
-            Task{@MainActor in
-                guard let self,self.busy,!self.stopping,self.workID==identifier else{return}
+        let model=self
+        return {value in
+            Task{@MainActor [weak model] in
+                guard let self=model,self.busy,!self.stopping,self.workID==identifier else{return}
                 if let current=self.workProgress{
                     guard value.phaseOrder>=current.phaseOrder else{return}
                     if value.phase==current.phase && value.completed<current.completed{return}
