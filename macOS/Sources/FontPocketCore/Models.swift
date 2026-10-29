@@ -55,12 +55,14 @@ public enum FontReader {
     }
     public static func faces(_ file: URL, state: FontState = .available, managedKey: String? = nil, checkCancellation: Bool = true) throws -> [FontFace] {
         if checkCancellation { try Task.checkCancellation() }
-        let values = try file.resourceValues(forKeys: [.isRegularFileKey, .isSymbolicLinkKey, .fileSizeKey])
-        guard values.isRegularFile == true, values.isSymbolicLink != true,
-              let bytes = values.fileSize, bytes >= 12, bytes <= 512 * 1024 * 1024 else {
+        // URL resource values are cached by Foundation and can survive an atomic
+        // replacement of the file. Fresh attributes are also the cache key.
+        let attributes = try FileManager.default.attributesOfItem(atPath: file.path)
+        guard attributes[.type] as? FileAttributeType == .typeRegular,
+              let bytes = (attributes[.size] as? NSNumber)?.intValue, bytes >= 12, bytes <= 512 * 1024 * 1024 else {
             throw PocketError("Invalid font file: \(file.lastPathComponent)")
         }
-        let identity = try FontMetadataCache.identity(file)
+        let identity = FontMetadataCache.identity(file, attributes: attributes)
         if let cached = FontMetadataCache.files.object(forKey: identity as NSString) {
             return cached.faces.map { identified($0, state: state, key: managedKey) }
         }
@@ -82,7 +84,7 @@ public enum FontReader {
                             postScript: name, format: file.pathExtension.uppercased(), bytes: Int64(bytes), state: .available,
                             version:CTFontCopyName(font,kCTFontVersionNameKey) as String? ?? "",weight:traits[kCTFontWeightTrait] as? Double ?? 0,
                             variable:!(CTFontCopyVariationAxes(font) as? [Any] ?? []).isEmpty,scripts:scripts)
-            face.renderSource = FontRenderSource(identity: identity + "|" + name, descriptor: descriptor)
+            face.renderSource = FontRenderSource(identity: identity + "|" + name, descriptor: descriptor, font: font)
             return face
         }
         FontMetadataCache.files.setObject(.init(faces), forKey: identity as NSString, cost: bytes)

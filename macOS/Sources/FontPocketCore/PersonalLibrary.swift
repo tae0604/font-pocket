@@ -128,7 +128,7 @@ public actor VersionVault {
         return url
     }
     @discardableResult public func capture(_ url: URL) throws -> [FontVersion] {
-        let hash = try FontReader.hash(url), faces = try FontReader.faces(url)
+        let faces = try FontReader.faces(url), hash = try FontReader.hash(url)
         var records = try read()
         let existing=records.filter{$0.hash == hash}
         let filename = existing.first?.filename ?? hash+"."+url.pathExtension.lowercased(), destination = root.appendingPathComponent(filename)

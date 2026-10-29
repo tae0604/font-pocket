@@ -6,22 +6,24 @@ import CoreText
 final class FontRenderSource: @unchecked Sendable, Hashable {
     let identity: String
     let descriptor: CTFontDescriptor
+    private let original: CTFont
     private final class FontBox: NSObject {
         let font: CTFont
         init(_ font: CTFont) { self.font = font }
     }
     private let sizes = NSCache<NSNumber, FontBox>()
 
-    init(identity: String, descriptor: CTFontDescriptor) {
+    init(identity: String, descriptor: CTFontDescriptor, font: CTFont) {
         self.identity = identity
         self.descriptor = descriptor
+        original = font
         sizes.countLimit = 8
     }
 
     func font(size: Double) -> CTFont {
         let key = NSNumber(value: size)
         if let box = sizes.object(forKey: key) { return box.font }
-        let font = CTFontCreateWithFontDescriptor(descriptor, size, nil)
+        let font = CTFontCreateCopyWithAttributes(original, size, nil, nil)
         sizes.setObject(FontBox(font), forKey: key)
         return font
     }
@@ -42,8 +44,7 @@ enum FontMetadataCache {
         return cache
     }()
 
-    static func identity(_ url: URL) throws -> String {
-        let attributes = try FileManager.default.attributesOfItem(atPath: url.path)
+    static func identity(_ url: URL, attributes: [FileAttributeKey: Any]) -> String {
         let bytes = (attributes[.size] as? NSNumber)?.stringValue ?? ""
         let modified = (attributes[.modificationDate] as? Date)?.timeIntervalSinceReferenceDate.bitPattern ?? 0
         let inode = (attributes[.systemFileNumber] as? NSNumber)?.stringValue ?? ""

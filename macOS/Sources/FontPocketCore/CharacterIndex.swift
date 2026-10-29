@@ -19,12 +19,13 @@ public struct CharacterIndex: Sendable {
         } else { candidates = characters[...] }
         let query = query.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !query.isEmpty else { return Array(candidates) }
-        let hexadecimal = query.uppercased().hasPrefix("U+")
+        let normalized = query.uppercased()
+        let hexadecimal = normalized.hasPrefix("U+")
         let wanted = Set(query.unicodeScalars.map(\.value))
         var result: [UInt32] = []
         for (index, value) in candidates.enumerated() {
             if index & 1023 == 0 { try Task.checkCancellation() }
-            if hexadecimal ? String(format: "U+%04X", value).hasPrefix(query.uppercased()) : wanted.contains(value) {
+            if hexadecimal ? String(format: "U+%04X", value).hasPrefix(normalized) : wanted.contains(value) {
                 result.append(value)
             }
         }

@@ -85,6 +85,9 @@ public actor FontImporter {
             for file in try await expand(url) {
                 try Task.checkCancellation()
                 let file = try await converter?(file,workspace) ?? file
+                let attributes=try FileManager.default.attributesOfItem(atPath:file.path)
+                guard attributes[.type] as? FileAttributeType == .typeRegular,
+                      let size=(attributes[.size] as? NSNumber)?.intValue,size>=12,size<=512*1024*1024 else{throw PocketError("Invalid or oversized font file")}
                 let digest = try FontReader.hash(file)
                 if !seen.insert(digest).inserted { continue }
                 guard seen.count<=ArchivePolicy.maximumEntries else{throw PocketError("Import up to 10,000 font files at once.")}
