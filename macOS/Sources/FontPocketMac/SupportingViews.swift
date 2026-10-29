@@ -10,7 +10,8 @@ struct PreviewPane<Actions: View>: View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
                 Text(face?.title ?? model.t("폰트를 선택하면 미리 볼 수 있어요.", "Select a font to preview it.")).fontWeight(.semibold)
-                Spacer(); actions()
+                Spacer()
+                GlassActions { HStack(spacing: 8) { actions() }.pocketGlassButton() }
             }
             HStack(alignment: .top) {
                 TextEditor(text: $model.previewText).font(.system(size: 12)).frame(height: 40).padding(5)
@@ -23,7 +24,7 @@ struct PreviewPane<Actions: View>: View {
             ScrollView([.vertical, .horizontal]) {
                 if let face { Text(model.previewText).font(Font(face.previewFont(size: model.previewSize))).textSelection(.enabled).frame(maxWidth: .infinity, alignment: .leading) }
             }.frame(maxWidth: .infinity, maxHeight: .infinity)
-        }.padding(16).background(Color(nsColor: .textBackgroundColor), in: RoundedRectangle(cornerRadius: 7))
+        }.padding(16).background(Color(nsColor: .textBackgroundColor), in: RoundedRectangle(cornerRadius: 12))
     }
 }
 
@@ -38,7 +39,7 @@ struct InstallView: View {
                     .overlay(RoundedRectangle(cornerRadius: 6).stroke(Color.secondary.opacity(0.18)))
                     .accessibilityLabel(model.t("폰트 주소 · 한 줄에 하나씩", "Font URLs · one per line"))
                 VStack(alignment: .leading, spacing: 8) {
-                    Button(model.t("대기열에 추가", "Add to queue")) { model.downloadLinks() }.buttonStyle(.borderedProminent).disabled(model.busy || model.links.isEmpty)
+                    Button(model.t("대기열에 추가", "Add to queue")) { model.downloadLinks() }.pocketPrimary().disabled(model.busy || model.links.isEmpty)
                     Text("Noonnu · Google Fonts\nHTTPS · ZIP · TTF · OTF").font(.caption).foregroundStyle(.secondary)
                 }.frame(width: 180, alignment: .leading)
             }
@@ -61,7 +62,7 @@ struct InstallView: View {
             HStack {
                 Text(model.t("\(model.checked.count)개 선택 / \(model.queue.count)개", "\(model.checked.count) selected / \(model.queue.count) fonts")).font(.caption).foregroundStyle(.secondary)
                 Spacer()
-                Button(model.t("선택한 폰트 설치", "Install checked fonts")) { model.installChecked() }.buttonStyle(.borderedProminent).disabled(model.busy || model.checked.isEmpty)
+                Button(model.t("선택한 폰트 설치", "Install checked fonts")) { model.installChecked() }.pocketPrimary().disabled(model.busy || model.checked.isEmpty)
             }
             PreviewPane(face: model.preview) {
                 Button(model.t("상세 정보", "Details")) { details = true }.disabled(model.preview == nil)
@@ -95,7 +96,7 @@ struct DownloadPicker: View {
                 Button(model.t("취소", "Cancel")) { model.finishChoices([]); dismiss() }.keyboardShortcut(.cancelAction)
                 Button(model.t("선택 파일 받기", "Download selected")) {
                     model.finishChoices(request.candidates.filter { checked.contains($0.id) }); dismiss()
-                }.keyboardShortcut(.defaultAction).disabled(checked.isEmpty)
+                }.pocketPrimary().keyboardShortcut(.defaultAction).disabled(checked.isEmpty)
             }
         }.padding(24).frame(width: 700, height: 520)
     }
@@ -164,17 +165,28 @@ struct ActivityView: View {
 
 struct SettingsView: View {
     @EnvironmentObject var model: AppModel
+    @Environment(\.dismiss) var dismiss
     var body: some View {
-        VStack(alignment: .leading, spacing: 22) {
+        VStack(alignment: .leading, spacing: 16) {
             Text(model.t("설정", "Settings")).font(.title2.bold())
-            Picker(model.t("언어", "Language"), selection: $model.language) {
-                Text("한국어").tag("ko"); Text("English").tag("en")
+            Form {
+                Section {
+                    Picker(model.t("언어", "Language"), selection: $model.language) {
+                        Text("한국어").tag("ko"); Text("English").tag("en")
+                    }
+                }
+                Section(model.t("폰트 보관", "Font storage")) {
+                    Text(model.t("폰트는 현재 사용자 계정에 설치됩니다. 사용 중지·삭제는 Font Pocket이 설치한 폰트만 지원합니다.", "Fonts are installed for the current user. Only fonts installed by Font Pocket can be disabled or deleted here.")).font(.callout).foregroundStyle(.secondary)
+                }
+                Section {
+                    Link(model.t("업데이트·다운로드 확인", "Check releases and downloads"), destination: URL(string: "https://github.com/tae0604/font-pocket/releases")!)
+                    Text("Font Pocket for macOS · 0.1.0 Preview").font(.caption).foregroundStyle(.secondary)
+                }
+            }.formStyle(.grouped)
+            HStack {
+                Spacer()
+                Button(model.t("닫기", "Done")) { dismiss() }.pocketGlassButton().keyboardShortcut(.cancelAction)
             }
-            Divider()
-            Text(model.t("폰트는 현재 사용자 계정에 설치됩니다. 사용 중지·삭제는 Font Pocket이 설치한 폰트만 지원합니다.", "Fonts are installed for the current user. Only fonts installed by Font Pocket can be disabled or deleted here.")).font(.callout).foregroundStyle(.secondary)
-            Link(model.t("업데이트·다운로드 확인", "Check releases and downloads"), destination: URL(string: "https://github.com/tae0604/font-pocket/releases")!)
-            Text("Font Pocket for macOS · 0.1.0 Preview").font(.caption).foregroundStyle(.secondary)
-            Spacer()
-        }.padding(28)
+        }.padding(22)
     }
 }

@@ -11,20 +11,23 @@ struct MainView: View {
     @State private var showDetails = false
     @State private var showComparison = false
     var body: some View {
-        HStack(spacing: 0) {
+        NavigationSplitView {
             sidebar
-            Divider()
+                .navigationSplitViewColumnWidth(min: 200, ideal: 215, max: 270)
+        } detail: {
             VStack(alignment: .leading, spacing: 18) {
                 heading
                 if model.page == .install { InstallView() }
                 else if model.page == .activity { ActivityView() }
                 else { manager }
                 footer
-            }.padding(28).frame(maxWidth: .infinity, maxHeight: .infinity)
-                .background(Color(nsColor: .windowBackgroundColor))
+            }.padding(24).frame(maxWidth: .infinity, maxHeight: .infinity)
+                .navigationTitle(title(model.page))
+                .toolbar { nativeToolbar }
         }
+        .navigationSplitViewStyle(.balanced)
         .tint(brand)
-        .sheet(isPresented: $showSettings) { SettingsView().environmentObject(model).frame(width: 460, height: 320) }
+        .sheet(isPresented: $showSettings) { SettingsView().environmentObject(model).frame(width: 480, height: 380) }
         .sheet(isPresented: $showDetails) { if let face = model.preview { DetailsView(face: face).environmentObject(model) } }
         .sheet(isPresented: $showComparison) { ComparisonView(faces: Array(model.selectedFonts.prefix(4))).environmentObject(model) }
         .sheet(item: $model.downloadRequest) { request in DownloadPicker(request: request).environmentObject(model).interactiveDismissDisabled() }
@@ -42,28 +45,25 @@ struct MainView: View {
         }
     }
     private var sidebar: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: 9) {
                 if let url = Bundle.main.url(forResource: "FontPocket-logo", withExtension: "png") ?? Bundle.module.url(forResource: "FontPocket-logo", withExtension: "png"), let image = NSImage(contentsOf: url) {
                     Image(nsImage: image).resizable().scaledToFit().frame(width: 28, height: 28)
                 }
                 Text("Font Pocket").font(.system(size: 20, weight: .semibold))
-            }.padding(.bottom, 24).padding(.horizontal, 10)
-            ForEach(Page.allCases) { page in
-                Button { model.page = page } label: {
-                    Label(title(page), systemImage: icon(page)).font(.system(size: 14))
-                        .frame(maxWidth: .infinity, alignment: .leading).padding(.horizontal, 12).padding(.vertical, 11)
-                        .foregroundStyle(model.page == page ? brand : Color.primary)
-                        .background(model.page == page ? brand.opacity(0.09) : Color.clear, in: RoundedRectangle(cornerRadius: 6))
-                }.buttonStyle(.plain)
+            }.padding(.horizontal, 18).padding(.top, 18).padding(.bottom, 14)
+            List(selection: Binding<Page?>(get: { model.page }, set: { if let page = $0 { model.page = page } })) {
+                ForEach(Page.allCases) { page in
+                    Label(title(page), systemImage: icon(page)).tag(page).padding(.vertical, 3)
+                }
             }
+            .listStyle(.sidebar)
             Spacer()
             Button { showSettings = true } label: {
-                Label(model.t("설정", "Settings"), systemImage: "gearshape").frame(maxWidth: .infinity, alignment: .leading).padding(12)
-            }.buttonStyle(.plain)
-            Text("macOS 0.1.0 Preview").font(.caption).foregroundStyle(.secondary).padding(.horizontal, 12)
-        }.padding(.horizontal, 12).padding(.vertical, 28).frame(width: 200)
-            .background(Color(nsColor: .controlBackgroundColor))
+                Label(model.t("설정", "Settings"), systemImage: "gearshape").frame(maxWidth: .infinity, alignment: .leading)
+            }.buttonStyle(.plain).padding(.horizontal, 20).padding(.vertical, 12)
+            Text("macOS 0.1.0 Preview").font(.caption).foregroundStyle(.secondary).padding(.horizontal, 20).padding(.bottom, 18)
+        }
     }
     private func title(_ page: Page) -> String {
         switch page { case .manager: return model.t("폰트 관리", "Font manager")
@@ -76,14 +76,8 @@ struct MainView: View {
     }
     private var heading: some View {
         HStack(alignment: .top) {
-            VStack(alignment: .leading, spacing: 5) {
-                Text(title(model.page)).font(.system(size: 25, weight: .bold))
-                Text(subtitle).font(.callout).foregroundStyle(.secondary)
-            }
+            Text(subtitle).font(.callout).foregroundStyle(.secondary)
             Spacer()
-            if model.page == .manager {
-                Button(model.t("폰트 설치", "Install fonts")) { model.page = .install }.buttonStyle(.borderedProminent).controlSize(.large)
-            }
         }
     }
     private var subtitle: String {
@@ -97,18 +91,9 @@ struct MainView: View {
     private var manager: some View {
         VStack(spacing: 12) {
             HStack {
-                TextField(model.t("폰트 이름이나 형식으로 검색", "Search font name or format"), text: $model.search).textFieldStyle(.roundedBorder)
-                Button { model.refresh() } label: { Image(systemName: "arrow.clockwise") }.disabled(model.busy)
-                Menu(model.t("필터", "Filters")) {
-                    Toggle(model.t("시스템 폰트 표시", "Show system fonts"), isOn: $model.showSystem).onChange(of: model.showSystem) { _ in model.refresh() }
-                    Toggle(model.t("즐겨찾기만", "Favorites only"), isOn: $model.onlyFavorites)
-                }
-            }
-            HStack {
                 Text(model.t("폰트 \(model.visibleFonts.count)개 · 선택 \(model.selection.count)개", "\(model.visibleFonts.count) fonts · \(model.selection.count) selected")).font(.caption).foregroundStyle(.secondary)
                 Spacer()
                 if model.page == .backup { Button(model.t("선택한 폰트 백업", "Back up selected fonts")) { model.backupSelected() }.disabled(model.selection.isEmpty || model.busy) }
-                else { actions }
             }
             Table(model.visibleFonts, selection: $model.selection) {
                 TableColumn(model.t("글꼴 · 스타일", "Font · style")) { face in
@@ -122,21 +107,33 @@ struct MainView: View {
                 TableColumn(model.t("크기", "Size")) { face in Text(ByteCountFormatter.string(fromByteCount: face.bytes, countStyle: .file)).foregroundStyle(.secondary) }.width(80)
             }
             .contextMenu { contextActions }
-            .background(Color(nsColor: .textBackgroundColor), in: RoundedRectangle(cornerRadius: 6))
-            .clipShape(RoundedRectangle(cornerRadius: 6))
             if model.page != .backup {
                 PreviewPane(face: model.preview) {
                     Button(model.t("상세 정보", "Details")) { showDetails = true }.disabled(model.preview == nil)
                     Button(model.t("비교", "Compare")) { showComparison = true }.disabled(model.selectedFonts.count < 2)
                 }.frame(minHeight: 190, idealHeight: 230, maxHeight: 270)
             }
-        }
+        }.searchable(text: $model.search, placement: .toolbar, prompt: model.t("폰트 검색", "Search fonts"))
     }
     private func state(_ face: FontFace) -> String {
         switch face.state { case .enabled: return model.t("사용 중", "In use"); case .disabled: return model.t("사용 중지", "Disabled")
         case .external: return model.t("설치됨 · 읽기 전용", "Installed · read-only"); case .available: return model.t("설치 대기", "Queued") }
     }
     private var actions: some View { Menu(model.t("관리", "Manage")) { contextActions }.disabled(model.selection.isEmpty || model.busy) }
+    @ToolbarContentBuilder private var nativeToolbar: some ToolbarContent {
+        ToolbarItemGroup(placement: .primaryAction) {
+            if model.page == .manager || model.page == .backup {
+                Button { model.refresh() } label: { Label(model.t("새로고침", "Refresh"), systemImage: "arrow.clockwise") }.disabled(model.busy)
+                Menu {
+                    Toggle(model.t("시스템 폰트 표시", "Show system fonts"), isOn: $model.showSystem)
+                    Toggle(model.t("즐겨찾기만", "Favorites only"), isOn: $model.onlyFavorites)
+                } label: { Label(model.t("필터", "Filters"), systemImage: "line.3.horizontal.decrease") }
+                .onChange(of: model.showSystem) { _ in model.refresh() }
+                Menu { contextActions } label: { Label(model.t("관리", "Manage"), systemImage: "ellipsis") }.disabled(model.selection.isEmpty || model.busy)
+            }
+            Button { model.page = .install; model.openFiles() } label: { Label(model.t("폰트 추가", "Add fonts"), systemImage: "plus") }.disabled(model.busy)
+        }
+    }
     @ViewBuilder private var contextActions: some View {
         Button(model.t("상세 정보", "Details")) { showDetails = true }.disabled(model.preview == nil)
         Button(model.t("비교", "Compare")) { showComparison = true }.disabled(model.selectedFonts.count < 2)
@@ -151,10 +148,14 @@ struct MainView: View {
     }
     private var footer: some View {
         HStack {
-            if model.busy { ProgressView().controlSize(.small) }
-            Text(model.status).font(.caption).foregroundStyle(.secondary).lineLimit(2)
+            if model.busy {
+                HStack(spacing: 12) {
+                    ProgressView().controlSize(.small)
+                    Text(model.status).font(.caption).lineLimit(1)
+                    Button(model.t("중지", "Stop")) { model.cancel() }.buttonStyle(.borderless)
+                }.padding(.horizontal, 16).padding(.vertical, 10).pocketFloatingSurface()
+            } else { Text(model.status).font(.caption).foregroundStyle(.secondary).lineLimit(2) }
             Spacer()
-            if model.busy { Button(model.t("중지", "Stop")) { model.cancel() } }
-        }.frame(minHeight: 24)
+        }.frame(minHeight: 26)
     }
 }

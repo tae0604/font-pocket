@@ -9,8 +9,19 @@ on:
 permissions:
   contents: read
 jobs:
-  build:
+  compatibility:
     runs-on: macos-14
+    timeout-minutes: 15
+    env:
+      FONTPOCKET_TEST_FONT: ${{ github.workspace }}/outputs/FontPocket/Brand/Fonts/Pretendard-SemiBold.ttf
+      FONTPOCKET_LIVE_CORETEXT_TEST: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - name: Test older macOS native-material fallback
+        working-directory: macOS
+        run: swift test
+  build:
+    runs-on: macos-26
     timeout-minutes: 25
     env:
       FONTPOCKET_TEST_FONT: ${{ github.workspace }}/outputs/FontPocket/Brand/Fonts/Pretendard-SemiBold.ttf

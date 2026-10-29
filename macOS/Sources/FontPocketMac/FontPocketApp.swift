@@ -30,7 +30,7 @@ import AppKit
                 Button(model.t("폰트 추가…", "Add Fonts…")) { model.openFiles() }.keyboardShortcut("o").disabled(model.busy)
             }
         }
-        Settings { SettingsView().environmentObject(model).frame(width: 460, height: 300) }
+        Settings { SettingsView().environmentObject(model).frame(width: 480, height: 380) }
     }
 }
 

@@ -2,6 +2,12 @@
 
 Native SwiftUI application for macOS 13 Ventura and later. The universal app supports Apple Silicon and Intel Macs. The original Font Pocket logo is preserved; interface icons use Apple's built-in SF Symbols.
 
+## Apple Liquid Glass
+
+On macOS 26 and later, the app uses the system NavigationSplitView sidebar and toolbar, native glass/glassProminent button styles, GlassEffectContainer for grouped preview actions, and glassEffect for the floating task controls. These are Apple's actual Liquid Glass APIs, not custom blur/gradient imitations. Font lists and sample text stay on readable content surfaces. Older macOS versions use native controls and regular material. Build with Xcode 26 or newer to include Liquid Glass; older compilers build the compatibility UI.
+
+Design references: [Apple Liquid Glass](https://developer.apple.com/kr/documentation/technologyoverviews/liquid-glass), [adopting Liquid Glass](https://developer.apple.com/documentation/technologyoverviews/adopting-liquid-glass).
+
 ## Build
 
 Install Apple's Xcode Command Line Tools, then run:
@@ -37,4 +43,6 @@ WOFF/WOFF2 conversion, variable-font axis editing, character maps, font-version 
 
 ## Testing
 
-Tests cover URL parsing, ZIP path/symlink/size validation, real Core Text font metadata, queue deduplication, installation rollback, activation persistence, external-file change protection, ZIP backup/restore and cancellation. Repository tests inject temporary font folders and a registration stub, so they never modify your installed fonts. An actual Mac must still be used to verify user-wide Core Text registration and Finder/UI behavior before a public release.
+Tests cover URL parsing, ZIP path/symlink/size validation, real Core Text font metadata, queue deduplication, installation rollback, activation persistence, external-file change protection, ZIP backup/restore and cancellation. Repository unit tests inject temporary font folders and a registration stub. On the disposable hosted Mac only, FONTPOCKET_LIVE_CORETEXT_TEST=1 also verifies real user-scope Core Text registration. The native app smoke test uses isolated catalog/font folders, installs a real font with Core Text, disables/re-enables it, creates a backup and renders both languages. It unregisters the temporary font before exiting. Compatibility tests run separately on macOS 14.
+
+The build and launch checks run on GitHub-hosted Macs; they do not install the app on your own MacBook. Manual Finder, multi-app font visibility and Apple notarization checks are still needed before a public release.
