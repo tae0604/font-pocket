@@ -36,6 +36,7 @@ private final class ArchiveProgress: @unchecked Sendable {
     private var completed = Set<String>()
     private let report: ProgressHandler?
     init(paths: Set<String>, report: ProgressHandler?) { self.paths = paths; self.report = report }
+    var count:Int{lock.lock();defer{lock.unlock()};return completed.count}
     func consume(_ line: String) {
         guard let start=line.range(of:"adding: "),
               let end=line.range(of:" \\((?:deflated|stored) [0-9]+%\\)\\s*$",options:.regularExpression),end.lowerBound>=start.upperBound else{return}
@@ -61,13 +62,15 @@ public enum BackupArchive {
         }
         guard let enumerator=fm.enumerator(at:folder,includingPropertiesForKeys:[.isRegularFileKey,.isSymbolicLinkKey]) else{throw PocketError("Cannot read backup staging folder")}
         var paths=Set<String>()
-        let prefix=folder.deletingLastPathComponent().path+"/"
+        let prefix=folder.deletingLastPathComponent().resolvingSymlinksInPath().path+"/"
         for case let file as URL in enumerator {
             try Task.checkCancellation()
             let values=try file.resourceValues(forKeys:[.isRegularFileKey,.isSymbolicLinkKey])
             guard values.isSymbolicLink != true else{throw PocketError("Symbolic links cannot be backed up")}
             if values.isRegularFile == true {
-                let name=String(file.path.dropFirst(prefix.count))
+                let path=file.resolvingSymlinksInPath().path
+                guard path.hasPrefix(prefix) else{throw PocketError("Backup file is outside its staging folder")}
+                let name=String(path.dropFirst(prefix.count))
                 guard ArchivePolicy.safePath(name) else{throw PocketError("Unsupported backup filename")}
                 paths.insert(name)
             }
@@ -83,6 +86,7 @@ public enum BackupArchive {
         catch { throw PocketError("ZIP compression: \(error.localizedDescription)") }
         try Task.checkCancellation()
         guard fm.fileExists(atPath:temporary.path) else{throw PocketError("ZIP output missing: "+output)}
+        guard reporter.count==paths.count else{throw PocketError("ZIP progress mismatch. Expected: \(paths.sorted()). Output: \(output.prefix(2000))")}
         progress?(WorkProgress(.verifying,completed:paths.count,total:paths.count))
         try ArchivePolicy.validate(Data(contentsOf:temporary,options:.mappedIfSafe))
         try Task.checkCancellation()
