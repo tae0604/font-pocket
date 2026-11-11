@@ -147,6 +147,9 @@ public actor FontRepository {
     private func owned(_ key: String, checkCancellation: Bool = true) throws -> (Int, OwnedFont, URL) {
         guard let index = records.firstIndex(where: { $0.key == key }) else { throw PocketError("This font is read-only.") }
         let record = records[index], url = location(record)
+        guard try fm.attributesOfItem(atPath:url.path)[.type] as? FileAttributeType == .typeRegular else {
+            throw PocketError("The managed font was replaced outside Font Pocket. Symbolic links are not managed.")
+        }
         guard try FontReader.hash(url,checkCancellation:checkCancellation) == record.key else { throw PocketError("The font changed outside Font Pocket. Refresh before continuing.") }
         return (index, record, url)
     }

@@ -11,7 +11,9 @@ import FontPocketCore
                   ProcessInfo.processInfo.environment["FONTPOCKET_MAC_TEST_ROOT"] != nil else { throw NSError(domain: "Smoke test configuration", code: 1) }
             model.language = "ko"
             model.links = "https://noonnu.cc/font_page/694\nhttps://noonnu.cc/font_page/845\nhttps://fonts.google.com/specimen/Poppins"
-            let sibling=URL(fileURLWithPath:fixture).deletingLastPathComponent().appendingPathComponent("Pretendard-Bold.ttf")
+            let sibling=model.workspace.appendingPathComponent("Pretendard-Bold.otf")
+            try await HTTPClient.get(URL(string:"https://raw.githubusercontent.com/orioncactus/pretendard/main/packages/pretendard/dist/public/static/Pretendard-Bold.otf")!,maximum:8*1024*1024).write(to:sibling)
+            model.importFormat="ALL"
             model.addFiles([URL(fileURLWithPath: fixture),sibling])
             try await wait(model)
             guard !model.busy, model.queue.count > 0 else { throw NSError(domain: "Queue did not load", code: 2) }

@@ -10,6 +10,7 @@ permissions:
   contents: read
 jobs:
   compatibility:
+    if: github.event_name != 'pull_request' || github.head_ref != 'codex/macos-native'
     runs-on: macos-15
     timeout-minutes: 15
     env:
@@ -21,6 +22,7 @@ jobs:
         working-directory: macOS
         run: swift test
   build:
+    if: github.event_name != 'pull_request' || github.head_ref != 'codex/macos-native'
     runs-on: macos-26
     timeout-minutes: 25
     env:

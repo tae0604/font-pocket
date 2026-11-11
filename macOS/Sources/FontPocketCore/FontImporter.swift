@@ -113,7 +113,17 @@ public actor FontImporter {
             try Task.checkCancellation()
             let scoped = url.startAccessingSecurityScopedResource(); defer { if scoped { url.stopAccessingSecurityScopedResource() } }
             let expanded: [URL]
-            do { expanded = try await expand(url) }
+            do {
+                if tolerateFailures, (try url.resourceValues(forKeys:[.isDirectoryKey,.isSymbolicLinkKey])).isDirectory == true {
+                    guard try url.resourceValues(forKeys:[.isSymbolicLinkKey]).isSymbolicLink != true else { throw PocketError("Symbolic links are not imported.") }
+                    var files:[URL]=[]
+                    for file in try walk(url,includeArchives:true) {
+                        do { files += try await expand(file) }
+                        catch { try failed(file,error) }
+                    }
+                    expanded=files
+                } else { expanded = try await expand(url) }
+            }
             catch { try failed(url, error); continue }
             if expanded.isEmpty { try failed(url, PocketError("No supported font files were found.")) }
             for source in expanded {

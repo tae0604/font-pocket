@@ -100,4 +100,22 @@ final class ReleaseReadinessTests: XCTestCase {
         do { _ = try await task.value;XCTFail("Process cancellation returned success") } catch is CancellationError {}
         XCTAssertLessThan(Date().timeIntervalSince(start),8)
     }
+    func testManagedSymlinkIsRejectedWithoutChangingOutsideOriginal() async throws {
+        let paths=LibraryPaths(root:root.appendingPathComponent("Library"),fonts:root.appendingPathComponent("Fonts"))
+        let repo=try FontRepository(paths:paths,registration:ReleaseRegistration()),original=try fixture()
+        _ = try await repo.install(original)
+        let record=try await repo.snapshot()[0],hash=try FontReader.hash(original)
+        try FileManager.default.removeItem(at:record.1)
+        try FileManager.default.createSymbolicLink(at:record.1,withDestinationURL:original)
+        do { try await repo.setEnabled(hash,enabled:false);XCTFail("Managed symlink was accepted") } catch {}
+        XCTAssertEqual(try FontReader.hash(original),hash)
+        XCTAssertTrue((try record.1.resourceValues(forKeys:[.isSymbolicLinkKey])).isSymbolicLink == true)
+    }
+    func testCorruptZipDoesNotHideGoodSiblingFontInFolder() async throws {
+        let folder=root.appendingPathComponent("Mixed");try FileManager.default.createDirectory(at:folder,withIntermediateDirectories:true)
+        try FileManager.default.copyItem(at:fixture(),to:folder.appendingPathComponent("good.ttf"))
+        try Data("invalid archive".utf8).write(to:folder.appendingPathComponent("broken.zip"))
+        let importer=try FontImporter(workspace:root.appendingPathComponent("Queue")),result=try await importer.readReport([folder])
+        XCTAssertFalse(result.faces.isEmpty);XCTAssertEqual(result.failures.count,1);XCTAssertTrue(result.failures[0].contains("broken.zip"))
+    }
 }
