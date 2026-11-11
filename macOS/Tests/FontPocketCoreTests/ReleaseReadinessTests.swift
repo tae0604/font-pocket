@@ -93,4 +93,11 @@ final class ReleaseReadinessTests: XCTestCase {
         try await store.mergeRestored(restored)
         let saved=try await store.read();XCTAssertEqual(saved.annotations["font"]?.note,"local edit");XCTAssertNotNil(saved.annotations["new"]);XCTAssertEqual(saved.collections,restored.collections)
     }
+    func testStopEscalatesWhenSubprocessIgnoresTermination() async throws {
+        let task=Task { try await ProcessRunner.run("/bin/sh",["-c","trap '' TERM; while :; do :; done"]) }
+        try await Task.sleep(nanoseconds:250_000_000)
+        let start=Date();task.cancel()
+        do { _ = try await task.value;XCTFail("Process cancellation returned success") } catch is CancellationError {}
+        XCTAssertLessThan(Date().timeIntervalSince(start),8)
+    }
 }

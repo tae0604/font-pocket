@@ -39,7 +39,7 @@ macOS 26 이상에서는 Apple의 실제 Liquid Glass API와 기본 사이드바
     swift test
     bash build.sh
 
-산출물은 dist에 생성됩니다. FONTPOCKET_TEST_FONT로 지정한 실제 TTF로 테스트하며 CI는 저장소의 OFL Pretendard를 사용합니다. 격리된 GitHub 맥에서 macOS 14/26 테스트, 양쪽 아키텍처 빌드·서명 검증, 설치·사용 전환·백업·웹폰트 변환·개인 정보·견본 PDF·화면 실행을 확인합니다. 사용자 맥북에 직접 설치한 것은 아닙니다.
+산출물은 dist에 생성됩니다. FONTPOCKET_TEST_FONT로 지정한 실제 TTF로 테스트하며 CI는 저장소의 OFL Pretendard를 사용합니다. 격리된 GitHub 맥에서 macOS 15/26 테스트, 양쪽 아키텍처 빌드·서명 검증, 설치·사용 전환·백업·웹폰트 변환·개인 정보·견본 PDF·화면 실행을 확인합니다. 사용자 맥북에 직접 설치한 것은 아닙니다.
 
 ## 보관 위치와 범위
 
@@ -48,3 +48,6 @@ macOS 26 이상에서는 Apple의 실제 Liquid Glass API와 기본 사이드바
 다운로드/ZIP 1GB, 압축 해제 합계 2GB, 최대 10,000개, 일반 폰트 512MB, WOFF2 입력 128MB/변환 결과 150MB입니다. 인쇄는 작업당 300페이지까지이며 초과하면 먼저 안내합니다. ZIP64·암호화·심볼릭 링크·안전하지 않은 경로는 거부합니다. 생성한 백업도 복원 정책을 통과해야 저장됩니다.
 
 Windows 레지스트리·기본 폰트 설정은 Core Text·Finder·서체 관리자로 대응합니다. 환경 ZIP 형식은 플랫폼별이며 Windows 환경 백업과 직접 교환되지 않습니다. 일반 폰트 ZIP은 양쪽에서 가져올 수 있습니다. 인앱 업데이트에는 공식 macOS ZIP과 해당 SHA-256 파일이 함께 게시되어야 합니다.
+
+
+[0.3.0 release notes](RELEASE_NOTES.md) · [Signing and release procedure](RELEASING.md)

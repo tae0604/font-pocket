@@ -1,4 +1,5 @@
 import Foundation
+import Darwin
 
 private final class CancellationFlag: @unchecked Sendable {
     private let lock = NSLock()
@@ -23,6 +24,9 @@ public enum ProcessRunner {
                         FileManager.default.createFile(atPath: output.path, contents: nil)
                         let handle = try FileHandle(forWritingTo: output); defer { try? handle.close() }
                         let process = Process()
+                        defer {
+                            if process.isRunning { process.terminate();_ = Darwin.kill(process.processIdentifier,SIGKILL);process.waitUntilExit() }
+                        }
                         process.executableURL = URL(fileURLWithPath: executable); process.arguments = arguments
                         process.currentDirectoryURL = workingDirectory
                         process.standardOutput = handle; process.standardError = handle
@@ -39,9 +43,12 @@ public enum ProcessRunner {
                         }
                         try process.run()
                         var cancelled = false
+                        var cancellationDate: Date?
+                        var killed = false
                         while process.isRunning {
                             try drain()
-                            if flag.cancelled && !cancelled { cancelled = true; process.terminate() }
+                            if flag.cancelled && !cancelled { cancelled = true;cancellationDate=Date();process.terminate() }
+                            if let cancellationDate,!killed,Date().timeIntervalSince(cancellationDate)>2 { killed=true;_ = Darwin.kill(process.processIdentifier,SIGKILL) }
                             Thread.sleep(forTimeInterval: 0.05)
                         }
                         process.waitUntilExit()

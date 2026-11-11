@@ -50,16 +50,8 @@ private final class ArchiveProgress: @unchecked Sendable {
 }
 
 public enum BackupArchive {
-    /// Write a temporary ZIP and only replace an existing backup after the
-    /// process succeeds and the resulting archive passes the restore policy.
-    public static func create(folder: URL, destination: URL, progress: ProgressHandler? = nil) async throws {
+    private static func stagingPaths(_ folder:URL) throws -> Set<String> {
         let fm=FileManager.default
-        let temporary=destination.deletingLastPathComponent().appendingPathComponent(".FontPocket-\(UUID().uuidString).zip")
-        defer {
-            temporary.withUnsafeFileSystemRepresentation { path in
-                if let path { _ = Darwin.unlink(path) }
-            }
-        }
         guard let enumerator=fm.enumerator(at:folder,includingPropertiesForKeys:[.isRegularFileKey,.isSymbolicLinkKey]) else{throw PocketError("Cannot read backup staging folder")}
         var paths=Set<String>()
         let prefix=folder.deletingLastPathComponent().resolvingSymlinksInPath().path+"/"
@@ -75,6 +67,19 @@ public enum BackupArchive {
                 paths.insert(name)
             }
         }
+        return paths
+    }
+    /// Write a temporary ZIP and only replace an existing backup after the
+    /// process succeeds and the resulting archive passes the restore policy.
+    public static func create(folder: URL, destination: URL, progress: ProgressHandler? = nil) async throws {
+        let fm=FileManager.default
+        let temporary=destination.deletingLastPathComponent().appendingPathComponent(".FontPocket-\(UUID().uuidString).zip")
+        defer {
+            temporary.withUnsafeFileSystemRepresentation { path in
+                if let path { _ = Darwin.unlink(path) }
+            }
+        }
+        let paths=try stagingPaths(folder)
         guard !paths.isEmpty else{throw PocketError("No files to back up")}
         let reporter=ArchiveProgress(paths:paths,report:progress)
         progress?(WorkProgress(.archiving,total:paths.count))

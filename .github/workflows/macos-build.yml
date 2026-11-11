@@ -10,7 +10,7 @@ permissions:
   contents: read
 jobs:
   compatibility:
-    runs-on: macos-14
+    runs-on: macos-15
     timeout-minutes: 15
     env:
       FONTPOCKET_TEST_FONT: ${{ github.workspace }}/outputs/FontPocket/Brand/Fonts/Pretendard-SemiBold.ttf

@@ -50,3 +50,6 @@ Active managed files: ~/Library/Fonts/FontPocket-<SHA256>.<extension>. Catalog, 
 Downloads/ZIPs: 1 GB compressed, 2 GB expanded, 10,000 entries. Native fonts: 512 MB; WOFF2 input: 128 MB, converted output: 150 MB. Comparison: 12 faces/256 MB. Printing: 300 pages with an explicit error before printing if exceeded. ZIP64, encryption, symlinks, traversal/override filenames and excessive expansion are rejected. Created backups must pass the restore policy before replacing an existing file.
 
 Windows registry/associations are replaced by Core Text, Finder and Font Book. Environment ZIP formats are platform-specific; ordinary font ZIPs can be imported on both platforms. In-app updates require an official macOS ZIP and matching SHA-256 sidecar. Font redistribution still depends on the creator's license.
+
+
+[0.3.0 release notes](RELEASE_NOTES.md) · [Signing and release procedure](RELEASING.md)

@@ -69,6 +69,8 @@ struct InstallView: View {
                     .accessibilityLabel(model.t("폰트 주소 · 한 줄에 하나씩", "Font URLs · one per line"))
                 VStack(alignment: .leading, spacing: 8) {
                     Button(model.t("대기열에 추가", "Add to queue")) { model.downloadLinks() }.pocketPrimary().disabled(model.busy || model.links.isEmpty)
+                    Button(model.t("바로 설치", "Download and install")) { model.downloadLinks(installAfter:true) }.disabled(model.busy || model.links.trimmingCharacters(in:.whitespacesAndNewlines).isEmpty)
+                        .help(model.t("다운로드할 파일을 고르면 현재 설치 옵션으로 설치합니다.","Choose downloads, then install them using the current format options."))
                     Text("Noonnu · Google Fonts\nHTTPS · ZIP · TTF · OTF").font(.caption).foregroundStyle(.secondary)
                 }.frame(width: 180, alignment: .leading)
             }

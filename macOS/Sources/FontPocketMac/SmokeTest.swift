@@ -11,7 +11,8 @@ import FontPocketCore
                   ProcessInfo.processInfo.environment["FONTPOCKET_MAC_TEST_ROOT"] != nil else { throw NSError(domain: "Smoke test configuration", code: 1) }
             model.language = "ko"
             model.links = "https://noonnu.cc/font_page/694\nhttps://noonnu.cc/font_page/845\nhttps://fonts.google.com/specimen/Poppins"
-            model.addFiles([URL(fileURLWithPath: fixture)])
+            let sibling=URL(fileURLWithPath:fixture).deletingLastPathComponent().appendingPathComponent("Pretendard-Bold.ttf")
+            model.addFiles([URL(fileURLWithPath: fixture),sibling])
             try await wait(model)
             guard !model.busy, model.queue.count > 0 else { throw NSError(domain: "Queue did not load", code: 2) }
             try FileManager.default.createDirectory(atPath: output, withIntermediateDirectories: true)
@@ -45,6 +46,11 @@ import FontPocketCore
             model.changeEnabled(true); try await wait(model)
             guard model.fonts.contains(where: { $0.id == installed.id && $0.state == .enabled }) else { throw NSError(domain: "Enable failed", code: 7) }
             model.page = .manager
+            model.search="__no_matching_font__"
+            guard model.selectedFonts.isEmpty else { throw PocketError("Manager selection must exclude hidden rows") }
+            model.page = .backup
+            guard model.selectedFonts.contains(where:{$0.id==installed.id}) else { throw PocketError("Backup lost hidden selected fonts") }
+            model.search="";model.page = .manager
             for (language, filename) in [("ko", "manager-ko.png"), ("en", "manager-en.png")] {
                 model.language = language
                 model.previewText = language == "ko" ? "다람쥐 헌 쳇바퀴에 타고파 0123456789\nThe quick brown fox jumps over the lazy dog." : "The quick brown fox jumps over the lazy dog.\nA typeface for every idea."
@@ -90,6 +96,7 @@ import FontPocketCore
             model.testReduceTransparency=false;model.testReduceMotion=false;model.testAppearance = .light;model.language="ko"
             model.details=true;model.detailsTab="characters"
             try await Task.sleep(nanoseconds:1_500_000_000);try await capture("characters-ko.png",output:output)
+            try validateFamilyPicker()
             try validateTabs(["미리보기","문자표","지원 범위","정보","검사"])
             model.testAppearance = .dark
             try await Task.sleep(nanoseconds:400_000_000);try await capture("characters-dark-ko.png",output:output)
@@ -108,11 +115,28 @@ import FontPocketCore
             model.language="ko";model.testAppearance = .light
             model.toolsTab="versions";try await Task.sleep(nanoseconds:400_000_000)
             model.tools=false;try await Task.sleep(nanoseconds:400_000_000)
-            model.quickSearch=true;try await Task.sleep(nanoseconds:400_000_000);model.quickSearch=false
-            if let key = installed.managedKey { try await model.repository.setEnabled(key, enabled: false) }
+            model.toolsTab="catalog";model.tools=true
+            try await Task.sleep(nanoseconds:400_000_000);try await capture("catalog-ko.png",output:output)
+            model.tools=false;try await Task.sleep(nanoseconds:400_000_000)
+            model.quickSearch=true;try await Task.sleep(nanoseconds:400_000_000);try await capture("quick-search-ko.png",output:output);model.quickSearch=false
+            // Exercise the actual immediate-download UI pipeline and file chooser.
+            model.page = .install;model.links="https://raw.githubusercontent.com/google/fonts/main/ofl/poppins/Poppins-Bold.ttf"
+            model.downloadLinks(installAfter:true)
+            let chooserDeadline=Date().addingTimeInterval(60)
+            while model.busy && model.downloadRequest==nil && Date()<chooserDeadline { try await Task.sleep(nanoseconds:100_000_000) }
+            guard let request=model.downloadRequest else { throw PocketError("Immediate download chooser was not presented") }
+            model.finishChoices(request.candidates)
+            try await wait(model)
+            guard model.fonts.contains(where:{$0.family=="Poppins" && $0.state == .enabled}) else { throw PocketError("Immediate download did not install Poppins") }
+            for key in Set(model.fonts.compactMap(\.managedKey)) { try await model.repository.setEnabled(key, enabled:false) }
             print("PASS: Native app launched; real import, user-wide install, disable/re-enable, font/environment backup, version archive, notes/tags/collections and packaged WOFF2 encode/decode passed; details, character map, library tools, quick search, Korean/English and accessibility variants rendered.")
             NSApp.terminate(nil)
         } catch { fputs("Smoke test failed: \(error)\n", stderr); exit(1) }
+    }
+    private static func validateFamilyPicker() throws {
+        func pickers(_ view:NSView)->[NSPopUpButton] { (view as? NSPopUpButton).map{[$0]} ?? view.subviews.flatMap(pickers) }
+        let controls=NSApp.windows.filter(\.isVisible).compactMap(\.contentView).flatMap(pickers)
+        guard controls.contains(where:{$0.itemTitles.contains(where:{$0.contains("SemiBold")}) && $0.itemTitles.contains(where:{$0.contains("Bold") && !$0.contains("SemiBold")})}) else { throw PocketError("Same-family style picker is missing styles") }
     }
     private static func wait(_ model: AppModel) async throws {
         let deadline = Date().addingTimeInterval(50)

@@ -48,7 +48,7 @@ public enum FontAnalysis {
         let raw=try Data(contentsOf:face.file,options:.mappedIfSafe)
         // Core Text returns the selected TTC face's table list. Reading directory
         // zero would incorrectly show the first face for every family member.
-        let tables = (CTFontCopyAvailableTables(font, .excludeSynthetic) as? [NSNumber] ?? []).compactMap { number -> String? in
+        let tables = (CTFontCopyAvailableTables(font, CTFontTableOptions(rawValue:0)) as? [NSNumber] ?? []).compactMap { number -> String? in
             let tag = number.uint32Value
             return String(bytes: [UInt8(truncatingIfNeeded: tag >> 24), UInt8(truncatingIfNeeded: tag >> 16),
                                   UInt8(truncatingIfNeeded: tag >> 8), UInt8(truncatingIfNeeded: tag)], encoding: .ascii)

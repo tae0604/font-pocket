@@ -30,6 +30,8 @@ struct FontContextMenu: View {
             Button(model.t("선택 해제", "Clear selection")) { model.selection=[] }.disabled(model.selection.isEmpty)
             Menu(model.t("라이브러리", "Library")) {
                 Button(model.t("모음 관리", "Collections")) { model.openTools("collections") }
+                Button(model.t("현재 모음 사용", "Enable current collection")) { model.selection=Set(model.visibleFonts.map(\.id));model.changeEnabled(true) }.disabled(model.activeCollection == nil && !model.onlyFavorites)
+                Button(model.t("현재 모음 사용 중지", "Disable current collection")) { model.selection=Set(model.visibleFonts.map(\.id));model.changeEnabled(false) }.disabled(model.activeCollection == nil && !model.onlyFavorites)
                 Button(model.t("중복 정리", "Duplicates")) { model.openTools("duplicates") }
                 Button(model.t("전체 견본·인쇄", "Catalog / print")) { model.openTools("catalog") }
                 Button(model.t("폰트 파일 검사", "Inspect font files")) { model.openTools("inspect") }

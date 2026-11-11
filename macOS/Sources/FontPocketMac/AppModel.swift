@@ -209,14 +209,15 @@ struct DownloadRequest: Identifiable { let id = UUID(); let candidates: [Downloa
     func showInManager(_ face: FontFace) { resetFilters(); page = .manager; selection=[face.id] }
     func openTools(_ tab: String) { toolsTab=tab; tools=true }
     func queueContextSelection(_ ids: Set<String>) { queueSelection=ids }
-    func downloadLinks() {
-        let lines = links.components(separatedBy: .whitespacesAndNewlines).filter { !$0.isEmpty }
+    func downloadLinks(installAfter:Bool=false) {
+        let lines = links.components(separatedBy: .whitespacesAndNewlines).filter { !$0.isEmpty }.map { $0.contains("://") ? $0 : "https://"+$0 }
         guard !lines.isEmpty, lines.count <= 30, lines.allSatisfy({ URL(string: $0)?.scheme?.lowercased() == "https" }) else {
             error = t("HTTPS 주소를 한 줄에 하나씩, 최대 30개 입력하세요.", "Enter up to 30 HTTPS addresses, one per line."); return
         }
         perform(t("폰트 다운로드 중…", "Downloading fonts…")) {
             var failures: [String] = []
             var seen = Set<String>()
+            var installIDs=Set<String>()
             for line in lines where seen.insert(line).inserted {
                 try Task.checkCancellation()
                 guard let url = URL(string: line) else { continue }
@@ -229,13 +230,15 @@ struct DownloadRequest: Identifiable { let id = UUID(); let candidates: [Downloa
                     for choice in selected {
                         self.status = self.t("다운로드 중 · ", "Downloading · ") + choice.name
                         let file = try await FontDownloads.download(choice, into: self.workspace.appendingPathComponent("Downloads"))
-                        try await self.importIntoQueue([file])
+                        let imported=try await self.importIntoQueue([file])
+                        installIDs.formUnion(self.checked.intersection(Set(imported.map(\.id))))
                     }
                 } catch is CancellationError { throw CancellationError() }
                 catch { failures.append("\(url.host ?? line): \(error.localizedDescription)"); self.record(failures.last!) }
             }
+            if installAfter && !installIDs.isEmpty { try await self.installFonts(self.queue.filter { installIDs.contains($0.id) }) }
             if !failures.isEmpty { throw PocketError(failures.joined(separator: "\n")) }
-            self.record(self.t("다운로드 완료 · 설치할 폰트를 선택하세요.", "Downloads complete · choose fonts to install."))
+            if !installAfter { self.record(self.t("다운로드 완료 · 설치할 폰트를 선택하세요.", "Downloads complete · choose fonts to install.")) }
         }
     }
     private func resolveDownloads(_ url:URL,depth:Int=0) async throws->[DownloadCandidate]{
@@ -262,55 +265,56 @@ struct DownloadRequest: Identifiable { let id = UUID(); let candidates: [Downloa
         let waiting = chooser; chooser = nil; downloadRequest = nil; waiting?.resume(returning: choices)
     }
     func installChecked() {
-        let selected = queue.filter { checked.contains($0.id) }
-        let files = Array(Set(selected.map(\.file))).sorted { $0.path < $1.path }
-        guard !files.isEmpty else { return }
-        perform(t("폰트 설치 중…", "Installing fonts…")) {
-            var count = 0, archived = 0, failures: [String] = []
-            let installed = try await self.repository.library(includeSystem: true)
-            var active = Set(installed.filter { [.enabled, .external].contains($0.state) }.map(\.postScript))
-            do {
-                for (index, file) in files.enumerated() {
-                    try Task.checkCancellation()
-                    self.workProgress=WorkProgress(.installing,completed:index,total:files.count)
-                    self.status = self.t("설치 중", "Installing") + " \(index + 1) / \(files.count)"
-                    do {
-                        let versions = try await self.vault.capture(file)
-                        guard let hash = versions.first?.hash else { throw PocketError("The font has no readable faces") }
-                        let names = Set(versions.map(\.postScript))
-                        if active.isDisjoint(with: names) {
-                            let added = try await self.repository.install(file)
-                            if await self.repository.managedState(hash) == .disabled {
-                                try await self.repository.setEnabled(hash, enabled: true)
-                            }
-                            if added { count += 1 }
-                            active.formUnion(names)
-                        } else { archived += 1 }
-                        // Finish the current committed file before honoring cancellation.
-                        // Rekey notes AND manual collection memberships to the installed ID.
-                        let baseline = self.personal
-                        var edited = baseline
-                        for face in self.queue where face.file == file {
-                            edited.remap(face.id, to: hash + "|" + face.postScript)
+        let selected=queue.filter { checked.contains($0.id) }
+        guard !selected.isEmpty else { return }
+        perform(t("폰트 설치 중…", "Installing fonts…")) { try await self.installFonts(selected) }
+    }
+    private func installFonts(_ selected:[FontFace]) async throws {
+        let files=Array(Set(selected.map(\.file))).sorted { $0.path<$1.path }
+        var count = 0, archived = 0, failures: [String] = []
+        let installed = try await self.repository.library(includeSystem: true)
+        var active = Set(installed.filter { [.enabled, .external].contains($0.state) }.map(\.postScript))
+        do {
+            for (index, file) in files.enumerated() {
+                try Task.checkCancellation()
+                self.workProgress=WorkProgress(.installing,completed:index,total:files.count)
+                self.status = self.t("설치 중", "Installing") + " \(index + 1) / \(files.count)"
+                do {
+                    let versions = try await self.vault.capture(file)
+                    guard let hash = versions.first?.hash else { throw PocketError("The font has no readable faces") }
+                    let names = Set(versions.map(\.postScript))
+                    if active.isDisjoint(with: names) {
+                        let added = try await self.repository.install(file)
+                        if await self.repository.managedState(hash) == .disabled {
+                            try await self.repository.setEnabled(hash, enabled: true)
                         }
-                        self.personal = try await self.personalStore.saveChanges(edited, baseline: baseline)
-                        let done = Set(self.queue.filter { $0.file == file }.map(\.id))
-                        self.queue.removeAll { done.contains($0.id) }
-                        self.checked.subtract(done)
-                        self.queueSelection.subtract(done)
-                        self.workProgress=WorkProgress(.installing,completed:index+1,total:files.count)
-                    } catch is CancellationError { throw CancellationError() }
-                    catch { failures.append(error.localizedDescription) }
-                }
-            } catch {
-                await self.reloadAfterMutation()
-                throw error
+                        if added { count += 1 }
+                        active.formUnion(names)
+                    } else { archived += 1 }
+                    // Finish the current committed file before honoring cancellation.
+                    // Rekey notes AND manual collection memberships to the installed ID.
+                    let baseline = self.personal
+                    var edited = baseline
+                    for face in self.queue where face.file == file {
+                        edited.remap(face.id, to: hash + "|" + face.postScript)
+                    }
+                    self.personal = try await self.personalStore.saveChanges(edited, baseline: baseline)
+                    let done = Set(self.queue.filter { $0.file == file }.map(\.id))
+                    self.queue.removeAll { done.contains($0.id) }
+                    self.checked.subtract(done)
+                    self.queueSelection.subtract(done)
+                    self.workProgress=WorkProgress(.installing,completed:index+1,total:files.count)
+                } catch is CancellationError { throw CancellationError() }
+                catch { failures.append(error.localizedDescription) }
             }
-            try await self.reload()
-            self.record(self.t("폰트 파일 \(count)개 설치 · 동일 이름 \(archived)개는 버전 보관함에 저장",
-                               "Installed \(count) font files · \(archived) conflicting versions archived"))
-            if !failures.isEmpty { throw PocketError(failures.joined(separator: "\n")) }
+        } catch {
+            await self.reloadAfterMutation()
+            throw error
         }
+        try await self.reload()
+        self.record(self.t("폰트 파일 \(count)개 설치 · 동일 이름 \(archived)개는 버전 보관함에 저장",
+                           "Installed \(count) font files · \(archived) conflicting versions archived"))
+        if !failures.isEmpty { throw PocketError(failures.joined(separator: "\n")) }
     }
     func changeEnabled(_ enabled: Bool) {
         let keys = Set(selectedFonts.compactMap(\.managedKey))
