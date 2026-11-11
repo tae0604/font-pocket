@@ -49,6 +49,7 @@ import FontPocketCore
             model.search="__no_matching_font__"
             guard model.selectedFonts.isEmpty else { throw PocketError("Manager selection must exclude hidden rows") }
             model.page = .backup
+            try await Task.sleep(nanoseconds:300_000_000)
             guard model.selectedFonts.contains(where:{$0.id==installed.id}) else { throw PocketError("Backup lost hidden selected fonts") }
             model.search="";model.page = .manager
             for (language, filename) in [("ko", "manager-ko.png"), ("en", "manager-en.png")] {

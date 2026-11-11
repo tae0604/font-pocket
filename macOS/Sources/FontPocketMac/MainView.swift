@@ -101,7 +101,7 @@ struct MainView: View {
                         .pocketPrimary().disabled(model.selectedFonts.isEmpty || model.busy).accessibilityIdentifier("backup-selected-fonts")
                 }
             }
-            Table(model.visibleFonts, selection: $model.selection) {
+            Table(model.visibleFonts, selection: tableSelection) {
                 TableColumn(model.t("글꼴 · 스타일", "Font · style")) { face in
                     VStack(alignment: .leading, spacing: 3) {
                         Text(face.family).fontWeight(.medium)
@@ -125,6 +125,14 @@ struct MainView: View {
                 }.frame(minHeight: 190, idealHeight: 230, maxHeight: 270)
             }
         }.searchable(text: $model.search, placement: .toolbar, prompt: model.t("폰트 검색", "Search fonts"))
+    }
+    private var tableSelection: Binding<Set<String>> {
+        Binding(get: { model.selection.intersection(Set(model.visibleFonts.map(\.id))) },set: { visibleSelection in
+            if model.page == .backup {
+                let hidden=model.selection.subtracting(Set(model.visibleFonts.map(\.id)))
+                model.selection=hidden.union(visibleSelection)
+            } else { model.selection=visibleSelection }
+        })
     }
     private func state(_ face: FontFace) -> String {
         switch face.state { case .enabled: return model.t("사용 중", "In use"); case .disabled: return model.t("사용 중지", "Disabled")

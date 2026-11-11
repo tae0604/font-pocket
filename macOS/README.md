@@ -6,6 +6,8 @@ Native SwiftUI font downloader and manager for macOS 13 Ventura and later. The u
 
 ## Open
 
+Open the DMG and drag **Font Pocket.app** to **Applications**, or use the ZIP.
+
 Download a successful **Build Font Pocket for macOS** artifact from the **codex/macos-native** branch. Extract the artifact, then extract **FontPocket-macOS-0.3.0-universal.zip** in Finder and open **Font Pocket.app**. ZIP preview inside a chat/editor does not launch an app.
 
 This development build has an ad-hoc code signature. Apple Developer ID signing and notarization have not been performed.
@@ -41,7 +43,7 @@ On a Mac with Xcode Command Line Tools:
     swift test
     bash build.sh
 
-Outputs are in macOS/dist. Tests use FONTPOCKET_TEST_FONT pointing to a licensed TTF; CI uses the project's OFL Pretendard fixture. CI tests macOS 14 compatibility and macOS 26, builds both architectures, verifies the packaged signature and launches the native app in isolated font/catalog folders. Smoke checks exercise Core Text activation, packaged WOFF2 conversion, environment backup, personal data, catalog PDFs and native windows. Hosted Macs are used; this does not install the app on the owner's MacBook.
+Outputs are in macOS/dist. Tests use FONTPOCKET_TEST_FONT pointing to a licensed TTF; CI uses the project's OFL Pretendard fixture. CI tests macOS 15 compatibility and macOS 26, builds both architectures, verifies the packaged signature and launches the native app in isolated font/catalog folders. Smoke checks exercise Core Text activation, packaged WOFF2 conversion, environment backup, personal data, catalog PDFs and native windows. Hosted Macs are used; this does not install the app on the owner's MacBook.
 
 ## Storage and limits
 

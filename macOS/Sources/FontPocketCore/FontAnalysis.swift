@@ -48,10 +48,16 @@ public enum FontAnalysis {
         let raw=try Data(contentsOf:face.file,options:.mappedIfSafe)
         // Core Text returns the selected TTC face's table list. Reading directory
         // zero would incorrectly show the first face for every family member.
-        let tables = (CTFontCopyAvailableTables(font, CTFontTableOptions(rawValue:0)) as? [NSNumber] ?? []).compactMap { number -> String? in
-            let tag = number.uint32Value
-            return String(bytes: [UInt8(truncatingIfNeeded: tag >> 24), UInt8(truncatingIfNeeded: tag >> 16),
-                                  UInt8(truncatingIfNeeded: tag >> 8), UInt8(truncatingIfNeeded: tag)], encoding: .ascii)
+        var tables:[String]=[]
+        if let tags=CTFontCopyAvailableTables(font,CTFontTableOptions(rawValue:0)) {
+            // Apple returns UNBOXED CTFontTableTag integers in this CFArray,
+            // not CFNumber objects. Bridging it to [NSNumber] dereferences tag
+            // values as object pointers and crashes the metadata inspector.
+            for index in 0..<CFArrayGetCount(tags) {
+                let tag=UInt32(truncatingIfNeeded:UInt(bitPattern:CFArrayGetValueAtIndex(tags,index)))
+                if let text=String(bytes:[UInt8(truncatingIfNeeded:tag>>24),UInt8(truncatingIfNeeded:tag>>16),
+                                          UInt8(truncatingIfNeeded:tag>>8),UInt8(truncatingIfNeeded:tag)],encoding:.ascii) { tables.append(text) }
+            }
         }
         let issues = try validateSFNTData(raw)
         return FontInspection(metadata: metadata, characters: characters, glyphs: CTFontGetGlyphCount(font), axes: axes, tables: tables, issues: issues)

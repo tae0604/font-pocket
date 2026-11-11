@@ -3,6 +3,7 @@ import AppKit
 import FontPocketCore
 
 @MainActor enum MacUpdates{
+    static func t(_ ko:String,_ en:String)->String { (UserDefaults.standard.string(forKey:"language") ?? (Locale.preferredLanguages.first?.hasPrefix("ko")==true ? "ko":"en")) == "ko" ? ko:en }
     typealias Asset=MacReleaseCatalog.Asset
     typealias Release=MacReleaseCatalog.Release
     static func version(_ asset:Asset)->String? { MacReleaseCatalog.version(asset.name) }
@@ -13,17 +14,18 @@ import FontPocketCore
         return (candidate.release,candidate.app,candidate.checksum)
     }
     static func check() async throws -> String{
-        guard let (release,asset,_)=try await latest() else{return "macOS 정식 업데이트가 아직 없습니다. / No stable macOS release is available yet."}
+        guard let (release,asset,_)=try await latest() else{return t("macOS 정식 업데이트가 아직 없습니다.","No stable macOS release is available yet.")}
         let current=Bundle.main.object(forInfoDictionaryKey:"CFBundleShortVersionString") as? String ?? "0.3.0"
-        if let available=version(asset),available.compare(current,options:.numeric) != .orderedDescending{return "최신 버전입니다. / Up to date. macOS \(current)"}
+        if let available=version(asset),available.compare(current,options:.numeric) != .orderedDescending{return t("최신 버전입니다. macOS \(current)","Up to date. macOS \(current)")}
         return "macOS: \(release.tag_name) · https://github.com/tae0604/font-pocket/releases"
     }
     static func installLatest() async throws{
-        guard let (release,asset,sidecar)=try await latest() else{throw PocketError("No stable macOS release with a SHA-256 checksum is available.")}
+        if let delegate=NSApp.delegate as? AppDelegate,delegate.model?.hasUnsavedLibraryEdits==true { throw PocketError(t("편집 중인 메모·모음 변경을 저장한 뒤 업데이트하세요.","Save your note/collection edits before updating.")) }
+        guard let (release,asset,sidecar)=try await latest() else{throw PocketError(t("SHA-256 검사 파일이 포함된 macOS 정식 배포본이 아직 없습니다.","No stable macOS release with a SHA-256 checksum is available."))}
         let current=Bundle.main.object(forInfoDictionaryKey:"CFBundleShortVersionString") as? String ?? "0.3.0"
-        guard let available=version(asset),available.compare(current,options:.numeric) == .orderedDescending else{throw PocketError("이미 최신 버전입니다. / Already up to date.")}
+        guard let available=version(asset),available.compare(current,options:.numeric) == .orderedDescending else{throw PocketError(t("이미 최신 버전입니다.","Already up to date."))}
         guard [asset,sidecar].allSatisfy({$0.browser_download_url.host=="github.com" && $0.browser_download_url.path.hasPrefix("/tae0604/font-pocket/releases/download/")}) else{throw PocketError("Untrusted update source")}
-        let alert=NSAlert();alert.messageText="Font Pocket \(release.tag_name)";alert.informativeText="업데이트를 다운로드·검증한 뒤 앱을 교체하고 다시 시작할까요? / Download, verify, install and restart?";alert.addButton(withTitle:"업데이트 / Update");alert.addButton(withTitle:"취소 / Cancel");guard alert.runModal() == .alertFirstButtonReturn else{return}
+        let alert=NSAlert();alert.messageText="Font Pocket \(release.tag_name)";alert.informativeText=t("업데이트를 다운로드·검증한 뒤 앱을 교체하고 다시 시작할까요?","Download, verify, install and restart?");alert.addButton(withTitle:t("업데이트","Update"));alert.addButton(withTitle:t("취소","Cancel"));guard alert.runModal() == .alertFirstButtonReturn else{return}
         let bytes=try await HTTPClient.get(asset.browser_download_url,maximum:200*1024*1024)
         guard bytes.count==asset.size else{throw PocketError("Update size mismatch")}
         let expected=String(decoding:try await HTTPClient.get(sidecar.browser_download_url,maximum:4096),as:UTF8.self).split(whereSeparator:{$0.isWhitespace}).first.map(String.init) ?? ""
