@@ -109,7 +109,8 @@ final class ReleaseReadinessTests: XCTestCase {
         try FileManager.default.createSymbolicLink(at:record.1,withDestinationURL:original)
         do { try await repo.setEnabled(hash,enabled:false);XCTFail("Managed symlink was accepted") } catch {}
         XCTAssertEqual(try FontReader.hash(original),hash)
-        XCTAssertTrue((try record.1.resourceValues(forKeys:[.isSymbolicLinkKey])).isSymbolicLink == true)
+        XCTAssertEqual(try FileManager.default.destinationOfSymbolicLink(atPath:record.1.path),original.path)
+        let state=await repo.managedState(hash);XCTAssertEqual(state,.enabled)
     }
     func testCorruptZipDoesNotHideGoodSiblingFontInFolder() async throws {
         let folder=root.appendingPathComponent("Mixed");try FileManager.default.createDirectory(at:folder,withIntermediateDirectories:true)
