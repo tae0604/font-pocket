@@ -2,7 +2,7 @@ import Foundation
 import Darwin
 
 public struct WorkProgress: Sendable, Equatable {
-    public enum Phase: String, Sendable { case preparing, archiving, verifying, installing, complete }
+    public enum Phase: String, Sendable { case preparing, archiving, verifying, installing, restoring, complete }
     public let phase: Phase
     public let completed: Int
     public let total: Int
@@ -12,7 +12,7 @@ public struct WorkProgress: Sendable, Equatable {
     public var fraction: Double? {
         if phase == .complete { return 1 }
         if phase == .verifying, total > 0 { return 0.99 }
-        guard total > 0, phase == .archiving || phase == .installing else { return nil }
+        guard total > 0, phase == .archiving || phase == .installing || phase == .restoring else { return nil }
         return min(0.99, Double(completed) / Double(total))
     }
     public var percent: Int? {
@@ -22,7 +22,7 @@ public struct WorkProgress: Sendable, Equatable {
         return min(99,completed*100/total)
     }
     public var phaseOrder: Int {
-        switch phase{case .preparing:return 0;case .archiving,.installing:return 1;case .verifying:return 2;case .complete:return 3}
+        switch phase{case .preparing:return 0;case .archiving,.installing:return 1;case .verifying:return 2;case .restoring:return 3;case .complete:return 4}
     }
 }
 

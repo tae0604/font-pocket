@@ -59,7 +59,8 @@ public actor FontRepository {
         }
         if FileManager.default.fileExists(atPath: paths.catalog.path) {
             records = try JSONDecoder().decode([OwnedFont].self, from: Data(contentsOf: paths.catalog))
-            guard records.allSatisfy({ record in
+            guard Set(records.map(\.key)).count == records.count, Set(records.map(\.filename)).count == records.count,
+                  records.allSatisfy({ record in
                 record.key.count == 64 && record.key.allSatisfy { $0.isHexDigit } &&
                 record.filename == "FontPocket-" + record.key + "." + URL(fileURLWithPath: record.filename).pathExtension &&
                 FontReader.extensions.contains(URL(fileURLWithPath: record.filename).pathExtension.lowercased())
@@ -119,8 +120,16 @@ public actor FontRepository {
         return result
     }
     public func switchVersion(_ file:URL,postScript:String) throws {
-        guard try FontReader.faces(file).contains(where:{$0.postScript==postScript}) else{throw PocketError("The selected style is not in this version file.")}
-        let previously=try records.filter(\.enabled).filter{record in try FontReader.faces(location(record)).contains{$0.postScript==postScript}}.map(\.key)
+        let candidate=try FontReader.faces(file), names=Set(candidate.map(\.postScript))
+        guard names.contains(postScript) else{throw PocketError("The selected style is not in this version file.")}
+        var previously:[String]=[]
+        for record in records where record.enabled {
+            let styles=Set(try FontReader.faces(location(record)).map(\.postScript))
+            if !styles.isDisjoint(with:names) {
+                guard styles.isSubset(of:names) else { throw PocketError("The replacement is missing other styles in an active TTC/OTC file.") }
+                previously.append(record.key)
+            }
+        }
         let hash=try FontReader.hash(file)
         if previously.contains(hash){return}
         let alreadyStored=records.contains{$0.key==hash}
@@ -159,7 +168,7 @@ public actor FontRepository {
             if !includeSystem && url.path.hasPrefix("/System/") { continue }
             if let faces = try? FontReader.faces(url, state: .external) { result += faces }
         }
-        return result.sorted { $0.title.localizedStandardCompare($1.title) == .orderedAscending }
+        return result.sorted(by: FontOrdering.precedes)
     }
     @discardableResult public func install(_ source: URL, enabled: Bool = true) throws -> Bool {
         try Task.checkCancellation()

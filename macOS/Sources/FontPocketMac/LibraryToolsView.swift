@@ -15,6 +15,8 @@ struct LibraryToolsView:View{
     @State private var clean=Set<String>()
     @State private var versionSelection=Set<String>()
     @State private var catalogLayout="list"
+    @State private var printMode="sample"
+    @State private var catalogDetail:FontFace?
     @State private var inspection=""
     @State private var update=""
     @State private var comparison:[FontFace]=[]
@@ -49,6 +51,8 @@ struct LibraryToolsView:View{
             if model.busy{TaskControls().environmentObject(model)}
         }.padding(22).frame(width:940,height:620)
         .sheet(isPresented:$compare){ComparisonView(faces:comparison).environmentObject(model)}
+        .sheet(item:$catalogDetail){font in DetailsView(face:font).environmentObject(model)}
+        .onChange(of:model.busy){busy in if !busy { Task { do { versions=try await model.vault.read() } catch { model.error=error.localizedDescription } } }}
         .interactiveDismissDisabled(document != baseline)
         .onChange(of:document){value in model.hasUnsavedLibraryEdits=value != baseline}
         .onChange(of:model.personal){value in if document==baseline{baseline=value;document=value}}
@@ -81,7 +85,7 @@ struct LibraryToolsView:View{
         HStack{Button(model.t("저장","Save")){saveDocument()}.disabled(model.busy);Button(model.t("모든 폰트 보기","Show all fonts")){saveDocument{model.activeCollection=nil;dismiss()}};Spacer()}
     }.padding()}
     private var duplicates:some View{VStack(alignment:.leading){
-        HStack{Button(model.t("중복 검색","Find duplicates")){let fonts=model.fonts;model.perform(model.t("중복 검색 중…","Finding duplicates…")){let task=Task.detached{try DuplicateFinder.find(fonts)};groups=try await withTaskCancellationHandler(operation:{try await task.value},onCancel:{task.cancel()});for group in groups{keep[group.id]=group.fonts.first(where:{!$0.canManage})?.id ?? group.fonts[0].id};clean=Set(groups.filter(\.exact).map(\.id))}}.disabled(model.busy);Spacer();Text(model.t("완전 동일 그룹만 기본 선택됩니다.","Only byte-identical groups are selected by default.")).font(.caption)}
+        HStack{Button(model.t("중복 검색","Find duplicates")){let fonts=model.fonts;model.perform(model.t("중복 검색 중…","Finding duplicates…")){let task=Task.detached{try DuplicateFinder.find(fonts)};groups=try await withTaskCancellationHandler(operation:{try await task.value},onCancel:{task.cancel()});model.duplicateIDs=Set(groups.flatMap{ $0.fonts.map(\.id) });for group in groups{keep[group.id]=group.fonts.first(where:{!$0.canManage})?.id ?? group.fonts[0].id};clean=Set(groups.filter(\.exact).map(\.id))}}.disabled(model.busy);Spacer();Text(model.t("완전 동일 그룹만 기본 선택됩니다.","Only byte-identical groups are selected by default.")).font(.caption)}
         List(groups){group in VStack(alignment:.leading,spacing:8){Toggle(group.exact ? model.t("동일 파일","Identical files"):model.t("동일 스타일 후보 · 직접 확인","Same-style candidates · review manually"),isOn:Binding(get:{clean.contains(group.id)},set:{if $0{clean.insert(group.id)}else{clean.remove(group.id)}}));Picker(model.t("남길 폰트","Keep"),selection:Binding(get:{keep[group.id] ?? group.fonts[0].id},set:{keep[group.id]=$0})){ForEach(group.fonts){font in Text(font.title+" · "+font.format+" · "+font.file.lastPathComponent).tag(font.id)}}}}
         Button(model.t("복구 백업 후 선택 그룹 정리","Back up and remove selected duplicates")){let remove=DuplicateFinder.deletionCandidates(groups,selected:clean,keep:keep);model.cleanDuplicates(remove)}.disabled(model.busy || clean.isEmpty)
     }.padding()}
@@ -89,13 +93,21 @@ struct LibraryToolsView:View{
         Toggle(model.t("모든 보관 버전 표시","Show all archived styles"),isOn:$allVersions).onChange(of:allVersions){_ in versionSelection=[]}
         HStack{Button(model.t("선택 폰트 보관","Archive selected")){model.archiveSelection()}.disabled(model.busy);Button(model.t("버전 파일·ZIP 추가","Add version files / ZIP")){let panel=NSOpenPanel();panel.allowsMultipleSelection=true;guard panel.runModal() == .OK else{return};model.perform(model.t("버전 읽는 중…","Reading versions…")){for file in try await model.importer.read(panel.urls){_ = try await model.vault.capture(file.file)};versions=try await model.vault.read()}}.disabled(model.busy);Button(model.t("새로고침","Refresh")){Task{do{versions=try await model.vault.read()}catch{model.error=error.localizedDescription}}}}
         Table(visibleVersions,selection:$versionSelection){TableColumn(model.t("글꼴","Font"),value:\.family);TableColumn(model.t("스타일","Style"),value:\.style);TableColumn(model.t("버전","Version"),value:\.version);TableColumn("SHA256"){Text(String($0.hash.prefix(12)))}}
-        HStack{Button(model.t("선택 버전 비교","Compare versions")){model.perform(model.t("버전 읽는 중…","Reading versions…")){var result:[FontFace]=[];for version in versions where versionSelection.contains(version.id){let url=try await model.vault.file(version);if let face=try FontReader.faces(url).first(where:{$0.postScript==version.postScript}){result.append(face)}};comparison=result;compare=true}}.disabled(model.busy || versionSelection.count<2 || versionSelection.count>12)
+        HStack{Button(model.t("선택 버전 비교","Compare versions")){model.perform(model.t("버전 읽는 중…","Reading versions…")){var result:[FontFace]=[];for version in versions where versionSelection.contains(version.id){let url=try await model.vault.file(version);if let face=try FontReader.faces(url).first(where:{$0.postScript==version.postScript}){result.append(face)}};guard FontOrdering.comparisonAllowed(result) else { throw PocketError(model.t("비교는 2~12개, 총 256MB까지 지원합니다.","Compare 2–12 fonts totaling up to 256 MB.")) };comparison=result;compare=true}}.disabled(model.busy || versionSelection.count<2 || versionSelection.count>12)
         Button(model.t("선택한 버전 사용","Activate selected version")){if let version=versions.first(where:{versionSelection.contains($0.id)}){model.activateVersion(version)}}.disabled(model.busy || versionSelection.count != 1)}
     }.padding()}
     private var catalog:some View{VStack{
-        HStack{Picker(model.t("배치","Layout"),selection:$catalogLayout){Text(model.t("문장","List")).tag("list");Text(model.t("두 열","Two columns")).tag("two");Text(model.t("격자","Grid")).tag("grid");Text(model.t("패밀리 순서","Families")).tag("family")}.pickerStyle(.segmented);Button(model.t("인쇄·PDF","Print / PDF")){FontPrinting.printFonts(model.visibleFonts,text:model.previewText,layout:catalogLayout)}}
-        TextField(model.t("견본 문구","Sample text"),text:$model.previewText).textFieldStyle(.roundedBorder)
-        ScrollView{LazyVGrid(columns:Array(repeating:GridItem(.flexible()),count:catalogLayout=="two" ? 2:catalogLayout=="grid" ? 3:1),alignment:.leading){ForEach(catalogLayout=="family" ? model.visibleFonts.sorted{$0.family < $1.family}:model.visibleFonts){font in VStack(alignment:.leading,spacing:8){Text(font.title).font(.caption).foregroundStyle(.secondary);Text(model.previewText).font(Font(font.previewFont(size:28))).lineLimit(3)}.padding().frame(maxWidth:.infinity,alignment:.leading).background(Color(nsColor:.textBackgroundColor),in:RoundedRectangle(cornerRadius:8)).onTapGesture(count:2){model.selection=[font.id];model.tools=false}}}}
+        HStack{Picker(model.t("배치","Layout"),selection:$catalogLayout){Text(model.t("문장","List")).tag("list");Text(model.t("두 열","Two columns")).tag("two");Text(model.t("격자","Grid")).tag("grid");Text(model.t("패밀리 순서","Families")).tag("family")}.pickerStyle(.segmented);Button(model.t("인쇄·PDF","Print / PDF")){FontPrinting.printFonts(model.visibleFonts,text:model.previewText,characters:printMode=="characters",layout:catalogLayout,sizes:printMode=="sizes" ? [12,18,28,40] : [model.previewSize])}}
+        HStack {
+            TextField(model.t("견본 문구","Sample text"),text:$model.previewText).textFieldStyle(.roundedBorder)
+            Stepper("\(Int(model.previewSize)) pt",value:$model.previewSize,in:10...120,step:2).frame(width:125)
+            Picker(model.t("인쇄 내용","Print content"),selection:$printMode) {
+                Text(model.t("현재 크기","Current size")).tag("sample")
+                Text(model.t("여러 크기","Multiple sizes")).tag("sizes")
+                Text(model.t("전체 문자표","All characters")).tag("characters")
+            }.frame(width:210)
+        }
+        ScrollView{LazyVGrid(columns:Array(repeating:GridItem(.flexible()),count:catalogLayout=="two" ? 2:catalogLayout=="grid" ? 3:1),alignment:.leading){ForEach(catalogLayout=="family" ? model.visibleFonts.sorted(by:FontOrdering.precedes):model.visibleFonts){font in VStack(alignment:.leading,spacing:8){Text(font.title).font(.caption).foregroundStyle(.secondary);Text(model.previewText).font(Font(font.previewFont(size:model.previewSize))).lineLimit(3)}.padding().frame(maxWidth:.infinity,alignment:.leading).background(Color(nsColor:.textBackgroundColor),in:RoundedRectangle(cornerRadius:8)).onTapGesture(count:2){catalogDetail=font}}}}
     }.padding()}
     private var inspectionView:some View{VStack(alignment:.leading){Button(model.t("선택한 폰트 검사","Inspect selected fonts")){let fonts=model.selectedFonts.isEmpty ? model.visibleFonts:model.selectedFonts;model.perform(model.t("파일 검사 중…","Inspecting files…")){let task=Task.detached{try fonts.map{font in let report=try FontAnalysis.inspect(font);return font.title+"\n"+(report.issues.isEmpty ? "PASS":report.issues.joined(separator:"\n"))}.joined(separator:"\n\n")};inspection=try await withTaskCancellationHandler(operation:{try await task.value},onCancel:{task.cancel()})}}.disabled(model.busy);ScrollView{Text(inspection).textSelection(.enabled).frame(maxWidth:.infinity,alignment:.leading)}}.padding()}
     private var backup:some View{VStack(alignment:.leading,spacing:18){

@@ -79,6 +79,11 @@ public enum ArchivePolicy {
     }
 }
 
+public struct FontImportResult: Sendable {
+    public let faces: [FontFace]
+    public let failures: [String]
+}
+
 public actor FontImporter {
     public static let supported = FontReader.extensions.union(["woff","woff2","sfnt"])
     public let workspace: URL
@@ -89,26 +94,48 @@ public actor FontImporter {
         try FileManager.default.createDirectory(at: workspace, withIntermediateDirectories: true)
     }
     public func read(_ urls: [URL]) async throws -> [FontFace] {
+        try await readFiles(urls, tolerateFailures: false).faces
+    }
+    /// Preserve good files from a mixed folder/ZIP and report each bad file.
+    /// The strict API remains available for callers requiring all-or-nothing input.
+    public func readReport(_ urls: [URL]) async throws -> FontImportResult {
+        try await readFiles(urls, tolerateFailures: true)
+    }
+    private func readFiles(_ urls: [URL], tolerateFailures: Bool) async throws -> FontImportResult {
         var faces: [FontFace] = [], seen = Set<String>()
+        var failures: [String] = []
+        func failed(_ file: URL, _ error: Error) throws {
+            if error is CancellationError { throw CancellationError() }
+            if !tolerateFailures { throw error }
+            failures.append(file.lastPathComponent + ": " + error.localizedDescription)
+        }
         for url in urls {
             try Task.checkCancellation()
             let scoped = url.startAccessingSecurityScopedResource(); defer { if scoped { url.stopAccessingSecurityScopedResource() } }
-            for file in try await expand(url) {
+            let expanded: [URL]
+            do { expanded = try await expand(url) }
+            catch { try failed(url, error); continue }
+            if expanded.isEmpty { try failed(url, PocketError("No supported font files were found.")) }
+            for source in expanded {
+                do {
                 try Task.checkCancellation()
-                let file = try await converter?(file,workspace) ?? file
+                let file = try await converter?(source,workspace) ?? source
                 let attributes=try FileManager.default.attributesOfItem(atPath:file.path)
                 guard attributes[.type] as? FileAttributeType == .typeRegular,
                       let size=(attributes[.size] as? NSNumber)?.intValue,size>=12,size<=512*1024*1024 else{throw PocketError("Invalid or oversized font file")}
                 let digest = try FontReader.hash(file)
-                if !seen.insert(digest).inserted { continue }
-                guard seen.count<=ArchivePolicy.maximumEntries else{throw PocketError("Import up to 10,000 font files at once.")}
+                if seen.contains(digest) { continue }
+                guard seen.count<ArchivePolicy.maximumEntries else{throw PocketError("Import up to 10,000 font files at once.")}
                 // Own a copy so originals can be moved without breaking the installation queue.
                 let copy = workspace.appendingPathComponent(digest + "." + file.pathExtension.lowercased())
                 if !FileManager.default.fileExists(atPath: copy.path) { try FileManager.default.copyItem(at: file, to: copy) }
+                guard try FontReader.hash(copy) == digest else { throw PocketError("The font changed while copying. Add the original again.") }
                 faces += try FontReader.faces(copy, managedKey: nil)
+                seen.insert(digest)
+                } catch { try failed(source, error) }
             }
         }
-        return faces
+        return FontImportResult(faces: faces, failures: failures)
     }
     private func expand(_ url: URL) async throws -> [URL] {
         let values = try url.resourceValues(forKeys: [.isDirectoryKey, .isSymbolicLinkKey])

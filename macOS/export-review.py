@@ -8,7 +8,8 @@ import hashlib
 from pathlib import Path
 
 root = Path(__file__).resolve().parent / "dist"
-paths = [root / "FontPocket-macOS-0.2.2-universal.zip"]
+paths = [root / "FontPocket-macOS-0.3.0-universal.zip"]
+paths += [root / "FontPocket-macOS-0.3.0-universal.dmg"]
 paths += [root / "screenshots" / name for name in (
     "manager-light.png", "manager-dark.png", "manager-accessible.png", "install-ko.png", "characters-ko.png", "collections-ko.png", "characters-dark-ko.png", "collections-dark-ko.png", "backup-dark-ko.png", "backup-progress-dark-ko.png"
 )]

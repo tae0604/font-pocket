@@ -13,7 +13,7 @@ import AppKit
         }
     }
     var body: some Scene {
-        WindowGroup("Font Pocket", id: "main") {
+        Window("Font Pocket", id: "main") {
             MainView().environmentObject(model)
                 .modifier(SmokeAccessibility(model: model))
                 .frame(minWidth: 960, minHeight: 680)
@@ -37,7 +37,7 @@ import AppKit
             }
             CommandGroup(after:.newItem){Button(model.t("빠른 검색","Quick search")){model.quickSearch=true}.keyboardShortcut("k");Button(model.t("라이브러리 도구","Library tools")){model.tools=true}.keyboardShortcut("l",modifiers:[.command,.shift])}
         }
-        Settings { SettingsView().environmentObject(model).frame(width: 480, height: 380) }
+        Settings { SettingsView().environmentObject(model).frame(width: 520, height: 520) }
     }
 }
 

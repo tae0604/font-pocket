@@ -6,6 +6,9 @@ struct AdvancedDetailsView: View {
     @EnvironmentObject var model: AppModel
     @Environment(\.dismiss) var dismiss
     let face: FontFace
+    @State private var selectedID = ""
+    private var familyFaces: [FontFace] { FontOrdering.family(of: face, in: model.page == .install ? model.queue : model.fonts) }
+    private var currentFace: FontFace { familyFaces.first { $0.id == selectedID } ?? face }
     @State private var report: FontInspection?
     @State private var index: CharacterIndex?
     @State private var matching: [UInt32] = []
@@ -19,11 +22,14 @@ struct AdvancedDetailsView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             HStack {
-                Text(face.title).font(.title2.bold()).lineLimit(2)
+                Text(currentFace.title).font(.title2.bold()).lineLimit(2)
                 Spacer()
-                Button(model.t("인쇄·PDF", "Print / PDF")) { FontPrinting.printFonts([face], text: model.previewText) }
+                Button(model.t("인쇄·PDF", "Print / PDF")) { FontPrinting.printFonts([currentFace], text: model.previewText) }
                 Button(model.t("닫기", "Done")) { dismiss() }.keyboardShortcut(.cancelAction)
             }
+            Picker(model.t("같은 패밀리의 서체", "Family styles"), selection: Binding(get: { currentFace.id }, set: { selectedID=$0 })) {
+                ForEach(familyFaces) { item in Text(item.title + " · " + item.format).tag(item.id) }
+            }.accessibilityIdentifier("family-style-picker")
             SectionSwitcher(options: [
                 .init(id: "preview", label: model.t("미리보기", "Preview")),
                 .init(id: "characters", label: model.t("문자표", "Characters")),
@@ -42,9 +48,9 @@ struct AdvancedDetailsView: View {
             }.frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             HStack {
                 Menu(model.t("웹폰트 내보내기", "Export web font")) {
-                    Button(model.t("원본·CSS·HTML 저장", "Original / CSS / HTML")) { model.exportWeb(face, woff2: false) }
-                    Button(model.t("WOFF2 저장", "WOFF2")) { model.exportWeb(face, woff2: true) }
-                    Button(model.t("WOFF2·CSS·HTML 저장", "WOFF2 / CSS / HTML")) { model.exportWeb(face, woff2: true, package: true) }
+                    Button(model.t("원본·CSS·HTML 저장", "Original / CSS / HTML")) { model.exportWeb(currentFace, woff2: false) }
+                    Button(model.t("WOFF2 저장", "WOFF2")) { model.exportWeb(currentFace, woff2: true) }
+                    Button(model.t("WOFF2·CSS·HTML 저장", "WOFF2 / CSS / HTML")) { model.exportWeb(currentFace, woff2: true, package: true) }
                 }.disabled(model.busy)
                 Spacer()
                 if report == nil && problem.isEmpty { ProgressView().controlSize(.small) }
@@ -53,9 +59,11 @@ struct AdvancedDetailsView: View {
             if model.busy { TaskControls().environmentObject(model) }
         }
         .padding(22).frame(width: 900, height: 620)
-        .task(id: face) {
+        .task(id: currentFace) {
+            report=nil; index=nil; matching=[]; axes=[:]; problem=""; copied=""; page=0
+            let selected=currentFace
             let task = Task.detached { () throws -> (FontInspection, CharacterIndex) in
-                let result = try FontAnalysis.inspect(face)
+                let result = try FontAnalysis.inspect(selected)
                 return (result, CharacterIndex(result.characters))
             }
             do {
@@ -66,7 +74,7 @@ struct AdvancedDetailsView: View {
             } catch is CancellationError { }
             catch { problem = error.localizedDescription }
         }
-        .task(id: "\(report?.metadata["SHA256"] ?? "")|\(query)|\(range)") {
+        .task(id: "\(currentFace.id)|\(report?.metadata["SHA256"] ?? "")|\(query)|\(range)") {
             guard let index else { return }
             let query = query, range = range
             do {
@@ -84,7 +92,7 @@ struct AdvancedDetailsView: View {
     private var preview: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 12) {
-                PreviewPane(face: face) { EmptyView() }.frame(height: 240)
+                PreviewPane(face: currentFace) { EmptyView() }.frame(height: 240)
                 if let report, !report.axes.isEmpty {
                     Text(model.t("가변 축 조절", "Variable axes")).font(.headline)
                     ForEach(report.axes) { axis in
@@ -95,7 +103,7 @@ struct AdvancedDetailsView: View {
                             Text(String(format: "%.1f", axes[axis.id] ?? axis.defaultValue)).monospacedDigit().frame(width: 65)
                         }.disabled(axis.minimum == axis.maximum)
                     }
-                    Text(model.previewText).font(Font(face.variedFont(size: model.previewSize, values: axes)))
+                    Text(model.previewText).font(Font(currentFace.variedFont(size: model.previewSize, values: axes)))
                         .frame(maxWidth: .infinity, alignment: .leading).padding(.vertical)
                     Button(model.t("기본값 복원", "Reset axes")) { axes = [:] }
                 }
@@ -113,7 +121,7 @@ struct AdvancedDetailsView: View {
                 }.frame(width: 210)
             }
             ScrollView {
-                let font = Font(face.previewFont(size: 28))
+                let font = Font(currentFace.previewFont(size: 28))
                 LazyVGrid(columns: [GridItem(.adaptive(minimum: 64))], spacing: 10) {
                     ForEach(Array(matching.dropFirst(page * 256).prefix(256)), id: \.self) { value in
                         Button {
@@ -138,7 +146,7 @@ struct AdvancedDetailsView: View {
                 Text(copied).font(.caption)
             }
             Button(model.t("문자표 인쇄·PDF", "Print character map / PDF")) {
-                FontPrinting.printFonts([face], text: model.previewText, characters: true)
+                FontPrinting.printFonts([currentFace], text: model.previewText, characters: true)
             }
         }
     }
@@ -179,7 +187,7 @@ struct AdvancedDetailsView: View {
                 if let report {
                     Text(model.t("글리프 \(report.glyphs)개 · 문자 \(report.characters.count)개",
                                  "\(report.glyphs) glyphs · \(report.characters.count) characters"))
-                    Text("Tables: " + report.tables.sorted().joined(separator: ", ")).textSelection(.enabled)
+                    Text(model.t("테이블: ", "Tables: ") + report.tables.sorted().joined(separator: ", ")).textSelection(.enabled)
                     Text(report.issues.isEmpty ? model.t("테이블 범위·체크섬 검사 통과", "Table bounds and checksums passed") : report.issues.joined(separator: "\n"))
                         .foregroundStyle(report.issues.isEmpty ? Color.primary : Color.red)
                 }
@@ -190,13 +198,3 @@ struct AdvancedDetailsView: View {
     }
 }
 
-struct QuickSearchView:View{
-    @EnvironmentObject var model:AppModel
-    @Environment(\.dismiss) var dismiss
-    @State private var query=""
-    @FocusState private var focused:Bool
-    var body:some View{VStack{
-        HStack{Image(systemName:"magnifyingglass");TextField(model.t("이름·메모·태그 검색","Search name, notes or tags"),text:$query).textFieldStyle(.plain).font(.title3).focused($focused);Button(model.t("닫기","Done")){dismiss()}.keyboardShortcut(.cancelAction)}.padding()
-        List(model.fonts.filter{face in let note=model.personal.annotations[face.id] ?? FontAnnotation();return query.isEmpty || (face.title+" "+face.version+" "+face.format+" "+note.note+" "+note.tags.joined(separator:" ")).localizedCaseInsensitiveContains(query)}.prefix(100)){face in Button{model.search="";model.activeCollection=nil;model.onlyFavorites=false;model.formatFilter="";model.stateFilter="";model.languageFilter="";model.weightFilter="";model.variableOnly=false;model.fixedOnly=false;model.selection=[face.id];model.page = .manager;dismiss()}label:{HStack{Text(face.title);Spacer();Text(face.format).foregroundStyle(.secondary)}}.buttonStyle(.plain).padding(.vertical,5)}
-    }.frame(width:660,height:480).onAppear{focused=true}}
-}

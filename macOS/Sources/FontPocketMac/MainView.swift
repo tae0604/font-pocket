@@ -26,7 +26,7 @@ struct MainView: View {
         }
         .navigationSplitViewStyle(.balanced)
         .tint(brand)
-        .sheet(isPresented: $showSettings) { SettingsView().environmentObject(model).frame(width: 480, height: 380) }
+        .sheet(isPresented: $showSettings) { SettingsView().environmentObject(model).frame(width: 520, height: 520) }
         .sheet(isPresented: $model.details) { if let face = model.preview { DetailsView(face: face).environmentObject(model) } }
         .sheet(isPresented: $showComparison) { ComparisonView(faces: Array(model.selectedFonts.prefix(12))).environmentObject(model) }
         .sheet(isPresented:$model.quickSearch){QuickSearchView().environmentObject(model)}
@@ -63,7 +63,7 @@ struct MainView: View {
             Button { showSettings = true } label: {
                 Label(model.t("설정", "Settings"), systemImage: "gearshape").frame(maxWidth: .infinity, alignment: .leading)
             }.buttonStyle(.plain).padding(.horizontal, 20).padding(.vertical, 12)
-            Text("macOS 0.2.2").font(.caption).foregroundStyle(.secondary).padding(.horizontal, 20).padding(.bottom, 18)
+            Text("macOS 0.3.0").font(.caption).foregroundStyle(.secondary).padding(.horizontal, 20).padding(.bottom, 18)
         }
     }
     private func title(_ page: Page) -> String {
@@ -86,7 +86,7 @@ struct MainView: View {
         case .manager: return model.t("설치된 폰트를 찾고, 미리 보고, 정리하세요.", "Find, preview and organize your installed fonts.")
         case .install: return model.t("링크·ZIP·폰트 파일을 한곳에 모아 설치하세요.", "Gather links, ZIP archives and font files in one queue.")
         case .backup: return model.t("필요한 폰트를 선택해 ZIP으로 보관하세요.", "Select fonts and save them in a ZIP archive.")
-        case .activity: return model.t("이번 실행에서 진행한 작업을 확인하세요.", "Review tasks from this session.")
+        case .activity: return model.t("최근 진행한 작업과 오류를 확인하세요.", "Review recent tasks and errors.")
         }
     }
     private var manager: some View {
@@ -112,12 +112,16 @@ struct MainView: View {
                 TableColumn(model.t("상태", "Status")) { face in Text(state(face)).foregroundStyle(.secondary) }.width(min: 90, ideal: 140)
                 TableColumn(model.t("크기", "Size")) { face in Text(ByteCountFormatter.string(fromByteCount: face.bytes, countStyle: .file)).foregroundStyle(.secondary) }.width(80)
             }
-            .contextMenu { contextActions }
-            .onTapGesture(count:2){if model.preview != nil{model.details=true}}
+            .contextMenu(forSelectionType: String.self) { ids in
+                FontContextMenu(ids: ids, compare: { showComparison=true })
+            } primaryAction: { ids in
+                model.selection=ids
+                if model.preview != nil { model.details=true }
+            }
             if model.page != .backup {
                 PreviewPane(face: model.preview) {
                     Button(model.t("상세 정보", "Details")) { model.details = true }.disabled(model.preview == nil)
-                    Button(model.t("비교", "Compare")) { showComparison = true }.disabled(model.selectedFonts.count < 2 || model.selectedFonts.count > 12 || model.selectedFonts.reduce(Int64(0)){$0+$1.bytes}>256*1024*1024)
+                    Button(model.t("비교", "Compare")) { showComparison = true }.disabled(!FontOrdering.comparisonAllowed(model.selectedFonts))
                 }.frame(minHeight: 190, idealHeight: 230, maxHeight: 270)
             }
         }.searchable(text: $model.search, placement: .toolbar, prompt: model.t("폰트 검색", "Search fonts"))
@@ -142,33 +146,19 @@ struct MainView: View {
                     Toggle(model.t("패밀리 순서","Group families"),isOn:$model.groupFamilies)
                     Toggle(model.t("시스템 폰트 표시", "Show system fonts"), isOn: $model.showSystem)
                     Toggle(model.t("즐겨찾기만", "Favorites only"), isOn: $model.onlyFavorites)
+                    Toggle(model.t("중복만", "Duplicates only"), isOn: $model.duplicatesOnly)
+                    Divider()
+                    Button(model.t("필터 초기화", "Reset filters")) { model.resetFilters() }
                 } label: { Label(model.t("필터", "Filters"), systemImage: "line.3.horizontal.decrease") }
                 .onChange(of: model.showSystem) { _ in model.refresh() }
-                Menu { contextActions } label: { Label(model.t("관리", "Manage"), systemImage: "ellipsis") }.disabled(model.selection.isEmpty || model.busy)
+                Menu { contextActions } label: { Label(model.t("관리", "Manage"), systemImage: "ellipsis") }.disabled(model.busy)
             }
             Button { model.page = .install; model.openFiles() } label: { Label(model.t("폰트 추가", "Add fonts"), systemImage: "plus") }.disabled(model.busy)
             Button{model.tools=true}label:{Label(model.t("도구","Tools"),systemImage:"slider.horizontal.3")}
         }
     }
-    @ViewBuilder private var contextActions: some View {
-        Button(model.t("메모·태그·모음·버전 관리","Notes, tags, collections and versions")){model.tools=true}
-        Button(model.t("버전으로 보관","Archive version")){model.archiveSelection()}.disabled(model.selection.isEmpty || model.busy)
-        Button(model.t("전체 견본·인쇄·중복 검사","Catalog, print and duplicates")){model.tools=true}
-        Button(model.t("환경 백업","Back up environment")){model.profileBackup()}.disabled(model.busy)
-        Button(model.t("환경 복원","Restore environment")){model.profileRestore()}.disabled(model.busy)
-        Button(model.t("삭제 폰트 복원","Restore removed fonts")){model.restoreDeleted()}.disabled(model.busy)
-        Button(model.t("상세 정보", "Details")) { model.details = true }.disabled(model.preview == nil)
-        Button(model.t("비교", "Compare")) { showComparison = true }.disabled(model.selectedFonts.count < 2 || model.selectedFonts.count > 12 || model.selectedFonts.reduce(Int64(0)){$0+$1.bytes}>256*1024*1024)
-        Button(model.t("즐겨찾기 전환", "Toggle favorite")) { model.toggleFavorites() }.disabled(model.selection.isEmpty)
-        Button(model.t("파일 위치 열기", "Show in Finder")) { NSWorkspace.shared.activateFileViewerSelecting(model.selectedFonts.map(\.file)) }.disabled(model.selection.isEmpty)
-        Button(model.t("표시된 항목 선택","Select visible fonts")){model.selection=Set(model.visibleFonts.map(\.id))}
-        Divider()
-        Button(model.t("기존 사용자 폰트 관리…","Manage existing user fonts…")){model.adoptSelected()}.disabled(model.busy || !model.selectedFonts.contains(where:{$0.canAdopt}))
-        Button(model.t("사용", "Enable")) { model.changeEnabled(true) }.disabled(!model.selectedFonts.contains { $0.canManage && $0.state == .disabled } || model.busy)
-        Button(model.t("사용 중지", "Disable")) { model.changeEnabled(false) }.disabled(!model.selectedFonts.contains { $0.canManage && $0.state == .enabled } || model.busy)
-        Button(model.t("선택 백업", "Back up selection")) { model.backupSelected() }.disabled(model.selection.isEmpty || model.busy)
-        Divider()
-        Button(model.t("삭제…", "Delete…"), role: .destructive) { model.deleteSelected() }.disabled(!model.selectedFonts.contains { $0.canManage } || model.busy)
+    private var contextActions: some View {
+        FontContextMenu(ids:Set(model.selectedFonts.map(\.id)), compare:{showComparison=true})
     }
     private var footer: some View {
         HStack {

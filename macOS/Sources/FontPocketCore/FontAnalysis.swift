@@ -46,10 +46,13 @@ public enum FontAnalysis {
               minimum: low.doubleValue, defaultValue: normal.doubleValue, maximum: high.doubleValue)
         }
         let raw=try Data(contentsOf:face.file,options:.mappedIfSafe)
-        func word(_ p:Int)->Int{guard p>=0,p+4<=raw.count else{return 0};return raw[p..<p+4].reduce(0){($0<<8)|Int($1)}}
-        let base=raw.prefix(4)==Data("ttcf".utf8) ? word(12):0
-        let count=base+6<=raw.count ? Int(raw[base+4])*256+Int(raw[base+5]):0
-        let tables=(0..<min(count,4096)).compactMap{i->String? in let p=base+12+i*16;guard p+4<=raw.count else{return nil};return String(data:raw.subdata(in:p..<p+4),encoding:.ascii)}
+        // Core Text returns the selected TTC face's table list. Reading directory
+        // zero would incorrectly show the first face for every family member.
+        let tables = (CTFontCopyAvailableTables(font, .excludeSynthetic) as? [NSNumber] ?? []).compactMap { number -> String? in
+            let tag = number.uint32Value
+            return String(bytes: [UInt8(truncatingIfNeeded: tag >> 24), UInt8(truncatingIfNeeded: tag >> 16),
+                                  UInt8(truncatingIfNeeded: tag >> 8), UInt8(truncatingIfNeeded: tag)], encoding: .ascii)
+        }
         let issues = try validateSFNTData(raw)
         return FontInspection(metadata: metadata, characters: characters, glyphs: CTFontGetGlyphCount(font), axes: axes, tables: tables, issues: issues)
     }

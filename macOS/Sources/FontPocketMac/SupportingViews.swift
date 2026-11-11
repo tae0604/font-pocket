@@ -58,6 +58,7 @@ struct InstallView: View {
     @EnvironmentObject var model: AppModel
     @State private var details = false
     @State private var compare = false
+    @State private var comparison:[FontFace]=[]
     private var compareFonts:[FontFace]{let checked=model.queue.filter{model.checked.contains($0.id)};return checked.isEmpty ? model.selectedQueue:checked}
     var body: some View {
         VStack(spacing: 14) {
@@ -87,26 +88,38 @@ struct InstallView: View {
             }
             Table(model.queue, selection: $model.queueSelection) {
                 TableColumn("") { face in
-                    Toggle("", isOn: Binding(get: { model.checked.contains(face.id) }, set: { if $0 { model.checked.insert(face.id) } else { model.checked.remove(face.id) } }))
+                    Toggle("", isOn: Binding(get: { model.checked.contains(face.id) }, set: { model.checkQueue(face,checked:$0) }))
                         .labelsHidden().disabled(model.busy).accessibilityLabel(face.title)
                 }.width(24)
                 TableColumn(model.t("글꼴 · 스타일", "Font · style"), value: \.title).width(min: 220, ideal: 380)
                 TableColumn(model.t("형식", "Format"), value: \.format).width(60)
                 TableColumn(model.t("크기", "Size")) { face in Text(ByteCountFormatter.string(fromByteCount: face.bytes, countStyle: .file)) }.width(80)
-            }.clipShape(RoundedRectangle(cornerRadius: 6))
+            }.contextMenu(forSelectionType:String.self) { ids in
+                let faces=model.queue.filter { ids.contains($0.id) }
+                Button(model.t("상세 정보", "Details")) { model.queueSelection=ids;details=true }.disabled(faces.isEmpty)
+                Button(model.t("비교", "Compare")) { comparison=faces;compare=true }.disabled(!FontOrdering.comparisonAllowed(faces))
+                Button(model.t("버전으로 보관", "Archive versions")) { model.archiveFonts(faces) }.disabled(faces.isEmpty || model.busy)
+                Button(model.t("파일 위치 열기", "Show in Finder")) { NSWorkspace.shared.activateFileViewerSelecting(faces.map(\.file)) }.disabled(faces.isEmpty)
+                Divider()
+                Button(model.t("대기열에서 제거", "Remove from queue"),role:.destructive) { model.removeQueue(ids) }.disabled(faces.isEmpty || model.busy)
+            } primaryAction: { ids in model.queueSelection=ids;details=true }
+            .clipShape(RoundedRectangle(cornerRadius: 6))
             HStack {
                 Text(model.t("\(model.checked.count)개 선택 / \(model.queue.count)개", "\(model.checked.count) selected / \(model.queue.count) \(model.queue.count == 1 ? "font" : "fonts")")).font(.caption).foregroundStyle(.secondary)
                 Spacer()
-                Button(model.t("비교","Compare")){compare=true}.disabled(compareFonts.count<2 || compareFonts.count>12 || compareFonts.reduce(Int64(0)){$0+$1.bytes}>256*1024*1024)
+                Button(model.t("비교","Compare")){comparison=compareFonts;compare=true}.disabled(!FontOrdering.comparisonAllowed(compareFonts))
                 Button(model.t("버전으로 보관","Archive versions")){model.archiveSelection()}.disabled(model.busy || model.checked.isEmpty)
                 Button(model.t("선택한 폰트 설치", "Install checked fonts")) { model.installChecked() }.pocketPrimary().disabled(model.busy || model.checked.isEmpty)
+            }
+            if model.queue.contains(where:{ model.checked.contains($0.id) && ["TTC","OTC"].contains($0.format) }) {
+                Text(model.t("TTC·OTC는 하나의 파일에 포함된 모든 서체가 함께 설치됩니다.","All faces contained in a TTC/OTC file are installed together.")).font(.caption).foregroundStyle(.secondary)
             }
             PreviewPane(face: model.preview) {
                 Button(model.t("상세 정보", "Details")) { details = true }.disabled(model.preview == nil)
             }.frame(minHeight: 220, idealHeight: 240, maxHeight: 280)
         }
         .sheet(isPresented: $details) { if let face = model.preview { DetailsView(face: face).environmentObject(model) } }
-        .sheet(isPresented:$compare){ComparisonView(faces:compareFonts).environmentObject(model)}
+        .sheet(isPresented:$compare){ComparisonView(faces:comparison).environmentObject(model)}
         .onChange(of:model.importFormat){_ in model.applyImportPreferences()}
         .onChange(of:model.includeTTC){_ in model.applyImportPreferences()}
         .onChange(of:model.importKind){_ in model.applyImportPreferences()}
@@ -186,7 +199,7 @@ struct ActivityView: View {
                 Text(item.message).textSelection(.enabled)
             }.padding(.vertical, 6)
         }.overlay {
-            if model.activity.isEmpty { Text(model.t("아직 진행한 작업이 없습니다.", "No tasks in this session yet.")).foregroundStyle(.secondary) }
+            if model.activity.isEmpty { Text(model.t("아직 진행한 작업이 없습니다.", "No recent tasks yet.")).foregroundStyle(.secondary) }
         }
     }
 }
@@ -208,8 +221,15 @@ struct SettingsView: View {
                     Text(model.t("폰트는 현재 사용자 계정에 설치됩니다. 기존 사용자 폰트는 관리 메뉴에서 가져올 수 있습니다. 시스템 폰트는 보호됩니다.", "Fonts are installed for the current user. Existing user fonts can be adopted in Manage. System fonts remain protected.")).font(.callout).foregroundStyle(.secondary)
                 }
                 Section {
-                    Link(model.t("업데이트·다운로드 확인", "Check releases and downloads"), destination: URL(string: "https://github.com/tae0604/font-pocket/releases")!)
-                    Text("Font Pocket for macOS · 0.2.2").font(.caption).foregroundStyle(.secondary)
+                    Button(model.t("업데이트 확인", "Check for updates")) {
+                        model.perform(model.t("업데이트 확인 중…","Checking updates…")) { model.updateStatus=try await MacUpdates.check() }
+                    }.disabled(model.busy)
+                    Button(model.t("업데이트 다운로드·설치", "Download and install update")) {
+                        model.perform(model.t("업데이트 처리 중…","Updating…")) { try await MacUpdates.installLatest() }
+                    }.disabled(model.busy)
+                    Text(model.updateStatus).font(.caption).textSelection(.enabled)
+                    Link(model.t("공식 배포 페이지", "Official releases"), destination: URL(string: "https://github.com/tae0604/font-pocket/releases")!)
+                    Text("Font Pocket for macOS · 0.3.0").font(.caption).foregroundStyle(.secondary)
                 }
             }.formStyle(.grouped)
             HStack {

@@ -20,8 +20,9 @@ public enum EnvironmentBackup{
         try JSONEncoder().encode(manifest).write(to:folder.appendingPathComponent("manifest.json"))
         try await BackupArchive.create(folder:folder,destination:destination,progress:progress)
     }
-    public static func restore(_ archive:URL,repository:FontRepository,personal:PersonalLibrary,vault:VersionVault) async throws{
+    public static func restore(_ archive:URL,repository:FontRepository,personal:PersonalLibrary,vault:VersionVault,progress:ProgressHandler?=nil) async throws{
         let fm=FileManager.default,stage=fm.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        progress?(WorkProgress(.preparing))
         try ArchivePolicy.validate(Data(contentsOf:archive,options:.mappedIfSafe));try fm.createDirectory(at:stage,withIntermediateDirectories:true)
         defer{try? fm.removeItem(at:stage)}
         _ = try await ProcessRunner.run("/usr/bin/unzip",["-qq","-n",archive.path,"-d",stage.path])
@@ -45,20 +46,29 @@ public enum EnvironmentBackup{
         let existing=try await repository.library(includeSystem:true)
         var active=Set(existing.filter{[.enabled,.external].contains($0.state)}.map(\.postScript))
         var restoredPersonal=manifest.personal
+        // Resolve external-font IDs before mutation and save metadata after each
+        // committed file, so stopping a restore never strands installed fonts
+        // without their notes, favorites and collection memberships.
+        for (record,_,faces) in validated {
+            for old in existing where old.state == .external && faces.contains(where:{$0.postScript==old.postScript}) {
+                if (try? FontReader.hash(old.file)) == record.hash { restoredPersonal.remap(record.hash+"|"+old.postScript,to:old.id) }
+            }
+        }
+        let total=validated.count+versionFiles.count
+        var completed=0
+        progress?(WorkProgress(.restoring,completed:completed,total:total))
         for (record,file,faces) in validated{
             try Task.checkCancellation()
             _ = try await vault.capture(file)
-            for old in existing where old.state == .external && faces.contains(where:{$0.postScript==old.postScript}){
-                if (try? FontReader.hash(old.file)) == record.hash{restoredPersonal.remap(record.hash+"|"+old.postScript,to:old.id)}
+            if active.isDisjoint(with:faces.map(\.postScript)) {
+                _ = try await repository.install(file,enabled:record.enabled)
+                if await repository.managedState(record.hash) == .enabled{active.formUnion(faces.map(\.postScript))}
             }
-            if !active.isDisjoint(with:faces.map(\.postScript)){continue}
-            _ = try await repository.install(file,enabled:record.enabled)
-            if await repository.managedState(record.hash) == .enabled{active.formUnion(faces.map(\.postScript))}
+            try await personal.mergeRestored(restoredPersonal)
+            completed+=1;progress?(WorkProgress(.restoring,completed:completed,total:total))
         }
-        for file in versionFiles{try Task.checkCancellation();_ = try await vault.capture(file)}
-        var current=try await personal.read()
-        current.annotations.merge(restoredPersonal.annotations){old,_ in old}
-        let ids=Set(current.collections.map(\.id));current.collections+=restoredPersonal.collections.filter{!ids.contains($0.id)}
-        try await personal.save(current)
+        for file in versionFiles{try Task.checkCancellation();_ = try await vault.capture(file);try await personal.mergeRestored(restoredPersonal);completed+=1;progress?(WorkProgress(.restoring,completed:completed,total:total))}
+        try await personal.mergeRestored(restoredPersonal)
+        progress?(WorkProgress(.complete,completed:total,total:total))
     }
 }

@@ -97,6 +97,15 @@ public actor PersonalLibrary {
         try save(merged)
         return merged
     }
+    /// Used after archive validation and after each committed restored file.
+    /// Existing annotations/collections always win, including simultaneous edits.
+    public func mergeRestored(_ imported: PersonalDocument) throws {
+        var current = try read()
+        current.annotations.merge(imported.annotations) { old, _ in old }
+        let ids = Set(current.collections.map(\.id))
+        current.collections += imported.collections.filter { !ids.contains($0.id) }
+        try save(current)
+    }
 }
 
 public struct FontVersion: Identifiable, Codable, Sendable {

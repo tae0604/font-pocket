@@ -9,7 +9,7 @@ struct ActivityEntry: Identifiable, Codable { var id = UUID(); let date: Date; l
 struct DownloadRequest: Identifiable { let id = UUID(); let candidates: [DownloadCandidate];var navigation=false }
 
 @MainActor final class AppModel: ObservableObject {
-    @Published var page: Page = .manager
+    @Published var page: Page = .manager { didSet { cachedSelected=nil } }
     @Published var fonts: [FontFace] = [] {didSet{invalidateFontFilter()}}
     @Published var queue: [FontFace] = []
     @Published var selection = Set<String>() {didSet{cachedSelected=nil}}
@@ -27,6 +27,8 @@ struct DownloadRequest: Identifiable { let id = UUID(); let candidates: [Downloa
     @Published var fixedOnly = false {didSet{if fixedOnly{variableOnly=false};invalidateFontFilter()}}
     @Published var weightFilter = "" {didSet{invalidateFontFilter()}}
     @Published var groupFamilies = false {didSet{invalidateFontFilter()}}
+    @Published var duplicatesOnly = false { didSet { invalidateFontFilter() } }
+    @Published var duplicateIDs = Set<String>() { didSet { invalidateFontFilter() } }
     @Published var importFormat = "TTF"
     @Published var importKind = "all"
     @Published var includeTTC = false
@@ -46,6 +48,7 @@ struct DownloadRequest: Identifiable { let id = UUID(); let candidates: [Downloa
     @Published var workProgress: WorkProgress?
     @Published var stopping = false
     @Published var taskName = ""
+    @Published var updateStatus = ""
     @Published var status = ""
     @Published var error: String?
     @Published var activity: [ActivityEntry] = []
@@ -89,6 +92,7 @@ struct DownloadRequest: Identifiable { let id = UUID(); let candidates: [Downloa
             let terms=face.title+" "+face.version+" "+face.format+" "+face.file.lastPathComponent+" "+annotation.note+" "+annotation.tags.joined(separator:" ")
             if !search.isEmpty && !terms.localizedCaseInsensitiveContains(search){return false}
             if onlyFavorites && !annotation.favorite{return false}
+            if duplicatesOnly && !duplicateIDs.contains(face.id){return false}
             if !formatFilter.isEmpty && face.format != formatFilter{return false}
             if !stateFilter.isEmpty && !(stateFilter == "enabled" ? [.enabled,.external].contains(face.state) : face.state.rawValue == stateFilter){return false}
             if variableOnly && !face.isVariable{return false}
@@ -100,11 +104,11 @@ struct DownloadRequest: Identifiable { let id = UUID(); let candidates: [Downloa
             if !languageFilter.isEmpty && !face.scripts.contains(languageFilter){return false}
             return true
         }
-        let result = groupFamilies ? filtered.sorted{$0.family==$1.family ? $0.weight < $1.weight : $0.family.localizedStandardCompare($1.family) == .orderedAscending} : filtered
+        let result = groupFamilies ? filtered.sorted(by:FontOrdering.precedes) : filtered
         cachedVisible=result
         return result
     }
-    var selectedFonts: [FontFace] {if let cachedSelected{return cachedSelected};let result=visibleFonts.filter{selection.contains($0.id)};cachedSelected=result;return result}
+    var selectedFonts: [FontFace] {if let cachedSelected{return cachedSelected};let result=(page == .backup ? fonts:visibleFonts).filter{selection.contains($0.id)};cachedSelected=result;return result}
     var selectedQueue: [FontFace] { queue.filter { queueSelection.contains($0.id) } }
     var preview: FontFace? { page == .install ? selectedQueue.first ?? queue.first : selectedFonts.first }
     func record(_ text: String) {
@@ -165,7 +169,8 @@ struct DownloadRequest: Identifiable { let id = UUID(); let candidates: [Downloa
         }
     }
     @discardableResult private func importIntoQueue(_ urls: [URL]) async throws -> [FontFace] {
-        let imported = try await importer.read(urls)
+        let report = try await importer.readReport(urls)
+        let imported = report.faces
         let known = Set(queue.map(\.id))
         let added = imported.filter { !known.contains($0.id) }
         queue += added
@@ -176,6 +181,10 @@ struct DownloadRequest: Identifiable { let id = UUID(); let candidates: [Downloa
         }
         if queueSelection.isEmpty, let first = queue.first { queueSelection = [first.id] }
         record(t("폰트 \(added.count)개를 대기열에 추가했습니다.", "Added \(added.count) fonts to the queue."))
+        if !report.failures.isEmpty {
+            let message = t("일부 파일을 가져오지 못했습니다. 나머지 폰트는 대기열에 유지했습니다.", "Some files could not be imported. Other fonts have been kept in the queue.") + "\n\n" + report.failures.joined(separator:"\n")
+            error = message; record(message)
+        }
         return imported
     }
     func preferredImport(_ face:FontFace)->Bool{
@@ -184,6 +193,22 @@ struct DownloadRequest: Identifiable { let id = UUID(); let candidates: [Downloa
         return importKind == "all" || (importKind == "variable" ? face.isVariable:!face.isVariable)
     }
     func applyImportPreferences(){checked=Set(queue.filter{preferredImport($0)}.map(\.id))}
+    func checkQueue(_ face: FontFace, checked value: Bool) {
+        let ids=Set(queue.filter { $0.file == face.file }.map(\.id))
+        if value { checked.formUnion(ids) } else { checked.subtract(ids) }
+    }
+    func removeQueue(_ ids:Set<String>) { queue.removeAll { ids.contains($0.id) };checked.subtract(ids);queueSelection.subtract(ids) }
+    func archiveFonts(_ faces:[FontFace]) {
+        let files=Set(faces.map(\.file))
+        guard !files.isEmpty else { return }
+        perform(t("버전 보관 중…","Archiving versions…")) { for file in files { _ = try await self.vault.capture(file) };self.record(self.t("버전을 보관했습니다.","Versions archived.")) }
+    }
+    func resetFilters() {
+        search="";activeCollection=nil;onlyFavorites=false;formatFilter="";stateFilter="";languageFilter="";weightFilter="";variableOnly=false;fixedOnly=false;duplicatesOnly=false
+    }
+    func showInManager(_ face: FontFace) { resetFilters(); page = .manager; selection=[face.id] }
+    func openTools(_ tab: String) { toolsTab=tab; tools=true }
+    func queueContextSelection(_ ids: Set<String>) { queueSelection=ids }
     func downloadLinks() {
         let lines = links.components(separatedBy: .whitespacesAndNewlines).filter { !$0.isEmpty }
         guard !lines.isEmpty, lines.count <= 30, lines.allSatisfy({ URL(string: $0)?.scheme?.lowercased() == "https" }) else {
@@ -357,6 +382,7 @@ struct DownloadRequest: Identifiable { let id = UUID(); let candidates: [Downloa
         case .archiving:return t("백업 압축 중…","Compressing backup…")
         case .verifying:return t("백업 검사·저장 중…","Verifying and saving backup…")
         case .installing:return t("폰트 설치 중…","Installing fonts…")
+        case .restoring:return t("환경 복원 중…","Restoring environment…")
         case .complete:return t("완료","Complete")
         }
     }

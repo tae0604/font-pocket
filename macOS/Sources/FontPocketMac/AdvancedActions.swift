@@ -46,14 +46,21 @@ extension AppModel {
             self.record(self.t("저장했습니다.","Saved."));completion?()
         }
     }
-    func archiveSelection(){let files=Set((page == .install ? queue.filter{checked.contains($0.id)}:selectedFonts).map(\.file));perform(t("버전 보관 중…","Archiving versions…")){for file in files{_ = try await self.vault.capture(file)};self.record(self.t("버전을 보관했습니다.","Versions archived."))}}
+    func archiveSelection(){archiveFonts(page == .install ? queue.filter{checked.contains($0.id)}:selectedFonts)}
     func activateVersion(_ version: FontVersion) {
         perform(t("버전 전환 중…", "Switching version…")) {
             do {
                 let file = try await self.vault.file(version)
-                for face in self.fonts where face.postScript == version.postScript && face.canManage {
-                    _ = try await self.vault.capture(face.file)
-                }
+                let reader=Task.detached { try FontReader.faces(file) }
+                let candidate=try await withTaskCancellationHandler(operation:{try await reader.value},onCancel:{reader.cancel()})
+                let names=Set(candidate.map(\.postScript))
+                let external=self.fonts.filter { $0.state == .external && names.contains($0.postScript) }
+                guard external.isEmpty else { throw PocketError(self.t("같은 스타일의 외부 폰트가 설치되어 있습니다. 기존 사용자 폰트는 관리 대상으로 가져온 뒤 버전을 전환하세요. 시스템·공유 폰트는 교체하지 않습니다.","A matching external font is installed. Adopt existing user fonts before switching versions. System and shared fonts cannot be replaced.")) }
+                let affected=self.fonts.filter { $0.state == .enabled && $0.canManage && names.contains($0.postScript) }
+                let affectedKeys=Set(affected.compactMap(\.managedKey))
+                let siblings=self.fonts.filter { $0.managedKey.map{affectedKeys.contains($0)} == true && !names.contains($0.postScript) }
+                guard siblings.isEmpty else { throw PocketError(self.t("기존 TTC·OTC 파일의 다른 스타일도 함께 중지됩니다. 같은 스타일 전체를 포함한 버전 파일을 사용하세요.","This would also disable other styles in an existing TTC/OTC. Choose a replacement containing all of those styles.")) }
+                for file in Set(affected.map(\.file)) { _ = try await self.vault.capture(file) }
                 try await self.repository.switchVersion(file, postScript: version.postScript)
             } catch {
                 await self.reloadAfterMutation()
@@ -64,7 +71,7 @@ extension AppModel {
         }
     }
     func profileBackup(){let panel=NSSavePanel();panel.allowedContentTypes=[.zip];panel.nameFieldStringValue="FontPocket-Environment.zip";guard panel.runModal() == .OK,let url=panel.url else{return};perform(t("환경 백업 중…","Backing up environment…")){try await EnvironmentBackup.create(repository:self.repository,personal:self.personalStore,vault:self.vault,destination:url,progress:self.progressHandler());self.record(self.t("환경 백업 완료","Environment backup complete"))}}
-    func profileRestore(){let panel=NSOpenPanel();panel.allowedContentTypes=[.zip];guard panel.runModal() == .OK,let url=panel.url else{return};let alert=NSAlert();alert.messageText=t("환경을 복원할까요?","Restore environment?");alert.informativeText=t("백업 무결성을 먼저 검사합니다. 기존 개인 정보와 폰트는 유지하고 없는 항목을 추가합니다.","Integrity is verified first. Existing fonts and personal data are preserved; missing items are added.");alert.addButton(withTitle:t("복원","Restore"));alert.addButton(withTitle:t("취소","Cancel"));guard alert.runModal() == .alertFirstButtonReturn else{return};perform(t("환경 복원 중…","Restoring environment…")){try await EnvironmentBackup.restore(url,repository:self.repository,personal:self.personalStore,vault:self.vault);self.personal=try await self.personalStore.read();self.fonts=try await self.repository.library(includeSystem:self.showSystem);self.record(self.t("환경 복원 완료","Environment restored"))}}
+    func profileRestore(){let panel=NSOpenPanel();panel.allowedContentTypes=[.zip];guard panel.runModal() == .OK,let url=panel.url else{return};let alert=NSAlert();alert.messageText=t("환경을 복원할까요?","Restore environment?");alert.informativeText=t("백업 무결성을 먼저 검사합니다. 기존 개인 정보와 폰트는 유지하고 없는 항목을 추가합니다.","Integrity is verified first. Existing fonts and personal data are preserved; missing items are added.");alert.addButton(withTitle:t("복원","Restore"));alert.addButton(withTitle:t("취소","Cancel"));guard alert.runModal() == .alertFirstButtonReturn else{return};perform(t("환경 복원 중…","Restoring environment…")){do { try await EnvironmentBackup.restore(url,repository:self.repository,personal:self.personalStore,vault:self.vault,progress:self.progressHandler()) } catch { await self.reloadAfterMutation(); throw error };await self.reloadAfterMutation();self.record(self.t("환경 복원 완료","Environment restored"))}}
     func cleanDuplicates(_ files:[FontFace]){guard !files.isEmpty else{return};let alert=NSAlert();alert.messageText=t("선택한 중복 폰트를 정리할까요?","Remove selected duplicate fonts?");alert.informativeText=t("복구 ZIP을 먼저 저장한 뒤 앱이 설치한 파일만 휴지통으로 옮깁니다.","A recovery ZIP is saved before app-managed files are moved to Trash.");alert.addButton(withTitle:t("정리","Remove"));alert.addButton(withTitle:t("취소","Cancel"));guard alert.runModal() == .alertFirstButtonReturn else{return};perform(t("중복 정리 중…","Removing duplicates…")){let root=self.dataRoot.appendingPathComponent("Removed");try FileManager.default.createDirectory(at:root,withIntermediateDirectories:true);try await FontBackup.create(files:files.map(\.file),destination:root.appendingPathComponent(UUID().uuidString+".zip"),progress:self.progressHandler());do{for key in Set(files.compactMap(\.managedKey)){try await self.repository.trash(key)}}catch{await self.reloadAfterMutation();throw error};self.fonts=try await self.repository.library(includeSystem:self.showSystem);self.record(self.t("복구 ZIP 저장 및 정리 완료","Recovery backup saved; duplicates removed"))}}
     func restoreDeleted(){let root=dataRoot.appendingPathComponent("Removed");try? FileManager.default.createDirectory(at:root,withIntermediateDirectories:true);let panel=NSOpenPanel();panel.directoryURL=root;panel.allowedContentTypes=[.zip];guard panel.runModal() == .OK else{return};addFiles(panel.urls)}
     func exportWeb(_ face:FontFace,woff2:Bool,package:Bool=false){let single=woff2 && !package;let panel=NSSavePanel();panel.allowedContentTypes=single ? [UTType(filenameExtension:"woff2")!]:[.zip];panel.nameFieldStringValue=single ? "font.woff2":"web-font.zip";guard panel.runModal() == .OK,let destination=panel.url else{return};perform(t("웹폰트 내보내는 중…","Exporting web font…")){

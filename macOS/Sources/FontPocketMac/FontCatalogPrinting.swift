@@ -29,7 +29,7 @@ import FontPocketCore
             guard page<300 else{throw PocketError("Print up to 300 pages at once. Select fewer fonts or characters.")}
             items.append(.init(text:value,rect:NSRect(x:CGFloat(column)*(width+20),y:CGFloat(page)*pageSize.height+y,width:width,height:height)));y+=height
         }
-        let ordered=layout=="family" ? faces.sorted{$0.family==$1.family ? $0.weight<$1.weight:$0.family<$1.family}:faces
+        let ordered=layout=="family" ? faces.sorted(by:FontOrdering.precedes):faces
         for face in ordered{
             if characters{
                 let report=try FontAnalysis.inspect(face)
@@ -59,12 +59,12 @@ import FontPocketCore
         }
         return FontCatalogPrintView(items:items,pageSize:pageSize,pages:page+1)
     }
-    static func printFonts(_ faces:[FontFace],text:String,characters:Bool=false,layout:String="list"){
+    static func printFonts(_ faces:[FontFace],text:String,characters:Bool=false,layout:String="list",sizes:[Double]=[12,18,28,40]){
         do{
             let info=NSPrintInfo.shared.copy() as! NSPrintInfo
             info.leftMargin=36;info.rightMargin=36;info.topMargin=36;info.bottomMargin=36
             let size=NSSize(width:max(300,info.paperSize.width-72),height:max(400,info.paperSize.height-72))
-            let view=try makeView(faces,text:text,characters:characters,layout:layout,pageSize:size)
+            let view=try makeView(faces,text:text,characters:characters,layout:layout,sizes:sizes,pageSize:size)
             let operation=NSPrintOperation(view:view,printInfo:info);operation.showsPrintPanel=true;operation.showsProgressPanel=true;operation.run()
         }catch{let alert=NSAlert();alert.messageText="Font Pocket";alert.informativeText=error.localizedDescription;alert.runModal()}
     }
